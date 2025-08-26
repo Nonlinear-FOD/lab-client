@@ -1,14 +1,16 @@
 import requests
-from typing import Any
 import numpy as np
+from typing import Any
 
 
 class LabDeviceClient:
+    PROPERTY_METHODS: tuple[str, ...] = ("GET", "POST")
+
     def __init__(self, base_url: str, device_name: str):
         self.base_url = base_url
         self.device_url = f"{self.base_url}/{device_name}"
 
-    def list_instruments(self) -> dict:
+    def list_instruments(self) -> dict[str, Any]:
         url = f"{self.base_url}/instruments"
         try:
             response = requests.get(url)
@@ -17,7 +19,7 @@ class LabDeviceClient:
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Could not retrieve instruments from {url}: {e}")
 
-    def _initialize_device(self, init_payload: dict) -> None:
+    def _initialize_device(self, init_payload: dict[str, Any]) -> None:
         url = f"{self.device_url}/connect"
         try:
             response = requests.post(url, json=init_payload)
@@ -29,8 +31,10 @@ class LabDeviceClient:
 
     # TODO: Add a method to disconnect the device
     # TODO: Add generic type hints to the methods
-    def _request(self, endpoint: str, method: str, value=None):
+    def _request(self, endpoint: str, method: str, value: Any | None = None) -> object:
         url = f"{self.device_url}/{endpoint}"
+        if method not in self.PROPERTY_METHODS:
+            raise ValueError(f"Method must be {'or '.join(self.PROPERTY_METHODS)}")
         try:
             if method == "GET":
                 resp = requests.get(url)
@@ -53,13 +57,13 @@ class LabDeviceClient:
         except requests.exceptions.ConnectionError:
             raise ConnectionError(f"Could not reach {self.base_url}")
 
-    def get_property(self, name: str):
+    def get_property(self, name: str) -> Any:
         return self._request(name, "GET")
 
-    def set_property(self, name: str, value):
+    def set_property(self, name: str, value: Any) -> None:
         self._request(name, "POST", value)
 
-    def call_method(self, name: str, *args, expect_response: bool = False) -> Any:
+    def call_method(self, name: str, *args: Any, expect_response: bool = False) -> Any:
         url = f"{self.device_url}/{name}"
         payload = {"args": args} if args else {}
         response = requests.post(url, json=payload)
@@ -67,8 +71,3 @@ class LabDeviceClient:
             json_response = response.json()
             return json_response.get("result", None)
         return None
-
-    # def call_method(self, name: str, *args) -> None:
-    #     url = f"{self.device_url}/{name}"
-    #     payload = {"args": args} if args else {}
-    #     requests.post(url, json=payload)

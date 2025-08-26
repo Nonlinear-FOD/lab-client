@@ -34,7 +34,7 @@ class OSAClient(LabDeviceClient):
         self._initialize_device(self.init_params)
 
     @property
-    def sweeptype(self):
+    def sweeptype(self) -> str:
         return self.get_property("sweeptype")
 
     @sweeptype.setter
@@ -42,7 +42,7 @@ class OSAClient(LabDeviceClient):
         self.set_property("sweeptype", value)
 
     @property
-    def resolution(self):
+    def resolution(self) -> float:
         return self.get_property("resolution")
 
     @resolution.setter
@@ -50,7 +50,7 @@ class OSAClient(LabDeviceClient):
         self.set_property("resolution", value)
 
     @property
-    def samples(self):
+    def samples(self) -> int | str:
         return self.get_property("samples")
 
     @samples.setter
@@ -58,16 +58,15 @@ class OSAClient(LabDeviceClient):
         self.set_property("samples", value)
 
     @property
-    def sensitivity(self):
+    def sensitivity(self) -> str:
         return self.get_property("sensitivity")
 
-    # TODO: Add specific hints for the sensitivity strings, could also be in the json config as it can be different between devices
     @sensitivity.setter
     def sensitivity(self, value: str) -> None:
         self.set_property("sensitivity", value)
 
     @property
-    def span(self):
+    def span(self) -> float | int | tuple[float | int, float | int]:
         return self.get_property("span")
 
     @span.setter
@@ -75,7 +74,7 @@ class OSAClient(LabDeviceClient):
         self.set_property("span", value)
 
     @property
-    def level(self):
+    def level(self) -> int:
         return self.get_property("level")
 
     @level.setter
@@ -83,7 +82,7 @@ class OSAClient(LabDeviceClient):
         self.set_property("level", value)
 
     @property
-    def level_scale(self):
+    def level_scale(self) -> int:
         return self.get_property("level_scale")
 
     @level_scale.setter
@@ -91,16 +90,12 @@ class OSAClient(LabDeviceClient):
         self.set_property("level_scale", value)
 
     @property
-    def TLS(self):
+    def TLS(self) -> bool:
         return self.get_property("TLS")
 
     @TLS.setter
-    def TLS(self, value: int) -> None:
+    def TLS(self, value: bool) -> None:
         self.set_property("TLS", value)
-
-    @property
-    def trace(self):
-        return self.get_property("trace")
 
     @property
     def wavelengths(self) -> np.ndarray:
@@ -109,6 +104,10 @@ class OSAClient(LabDeviceClient):
     @property
     def powers(self) -> np.ndarray:
         return np.array(self.get_property("powers"))
+
+    @property
+    def trace(self) -> str:
+        return self.get_property("trace")
 
     @trace.setter
     def trace(self, value: str) -> None:
@@ -121,7 +120,7 @@ class OSAClient(LabDeviceClient):
         return self.call_method("query", command)
 
     @property
-    def zero_nm_sweeptime(self):
+    def zero_nm_sweeptime(self) -> int:
         return self.get_property("zero_nm_sweeptime")
 
     @zero_nm_sweeptime.setter
@@ -129,7 +128,7 @@ class OSAClient(LabDeviceClient):
         self.set_property("zero_nm_sweeptime", value)
 
     @property
-    def average(self):
+    def average(self) -> int:
         return self.get_property("average")
 
     @average.setter
