@@ -4,7 +4,6 @@ import numpy as np
 
 class OSAClient(LabDeviceClient):
     # TODO: Add a docstring
-    # TODO: Add type hints for properties, but after generic type hints are added to the base client
     def __init__(
         self,
         base_url: str,
@@ -19,7 +18,7 @@ class OSAClient(LabDeviceClient):
         GPIB_bus: int | None = None,
         zero_nm_sweeptime: int | None = None,
     ):
-        self.init_params = {
+        init_params = {
             "span": span,
             "resolution": resolution,
             "sensitivity": sensitivity,
@@ -30,6 +29,7 @@ class OSAClient(LabDeviceClient):
             "GPIB_bus": GPIB_bus,
             "zero_nm_sweeptime": zero_nm_sweeptime,
         }
+        self.init_params = {k: v for k, v in init_params.items() if v is not None}
         super().__init__(base_url, device_name)
         self._initialize_device(self.init_params)
 
@@ -114,10 +114,10 @@ class OSAClient(LabDeviceClient):
         self.set_property("trace", value)
 
     def write(self, command: str) -> None:
-        self.call_method("write", command)
+        self.call("write", command=command)
 
     def query(self, command: str) -> str:
-        return self.call_method("query", command)
+        return self.call("query", command=command)
 
     @property
     def zero_nm_sweeptime(self) -> int:
@@ -135,46 +135,55 @@ class OSAClient(LabDeviceClient):
     def average(self, value: int) -> None:
         self.set_property("average", value)
 
-    def fix_trace(self, trace: str | None) -> None:
-        self.call_method("fix_trace", trace)
+    def fix_trace(self, trace: str | None = None) -> None:
+        # Omit the field entirely when None so the server uses the default
+        if trace is None:
+            self.call("fix_trace")
+        else:
+            self.call("fix_trace", trace=trace)
 
     def write_trace(self, trace: str) -> None:
-        self.call_method("write_trace", trace)
+        self.call("write_trace", trace=trace)
 
-    def display_trace(self, trace: str | None) -> None:
-        self.call_method("display_trace", trace)
+    def display_trace(self, trace: str | None = None) -> None:
+        if trace is None:
+            self.call("display_trace")
+        else:
+            self.call("display_trace", trace=trace)
 
-    def blank_trace(self, trace: str | None) -> None:
-        self.call_method("blank_trace", trace)
+    def blank_trace(self, trace: str | None = None) -> None:
+        if trace is None:
+            self.call("blank_trace")
+        else:
+            self.call("blank_trace", trace=trace)
 
     def subtract_to_C(
         self,
-        trace1: str | None = None,
-        trace2: str | None = None,
-        mode: str | None = None,
+        trace1: str = "A",
+        trace2: str = "B",
     ) -> None:
-        self.call_method("subtract_to_C", trace1, trace2, mode)
+        self.call("subtract_to_C", trace1=trace1, trace2=trace2)
 
     def stop_sweep(self) -> None:
-        self.call_method("stop_sweep")
+        self.call("stop_sweep")
 
     def sweep(self) -> None:
-        self.call_method("sweep")
+        self.call("sweep")
 
     def update_spectrum(self) -> None:
-        self.call_method("update_spectrum")
+        self.call("update_spectrum")
 
     def save(self, filename: str) -> None:
-        self.call_method("save", filename)
+        self.call("save", filename=filename)
 
     def set_power_marker(self, marker: int, power: float) -> None:
-        self.call_method("set_power_marker", marker, power)
+        self.call("set_power_marker", marker=marker, power=power)
 
     def set_wavelength_marker(self, marker: int, wavelength: float) -> None:
-        self.call_method("set_wavelength_marker", marker, wavelength)
+        self.call("set_wavelength_marker", marker=marker, wavelength=wavelength)
 
     def close(self) -> None:
-        self.call_method("close")
+        self.call("close")
 
     def __del__(self) -> None:
         self.close()
