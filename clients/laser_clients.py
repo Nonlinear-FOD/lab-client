@@ -1,14 +1,20 @@
-import sys
-import serial
 import os
+import sys
+
+import serial
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
 from clients.base_client import LabDeviceClient
+from clients.laser_base_clients import (
+    OSATuningClientMixin,
+    PowerSettable,
+    TunableLaserClientBase,
+)
 from clients.osa_clients import OSAClient
 
 
-class AndoLaserClient(LabDeviceClient):
+class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
     def __init__(
         self,
         base_url: str,
@@ -20,7 +26,7 @@ class AndoLaserClient(LabDeviceClient):
         wl_interp: bool = False,
     ):
         self.init_params = {
-            "wavelength": target_wavelength,
+            "target_wavelength": target_wavelength,
             "power": power,
             "GPIB_address": GPIB_address,
             "GPIB_bus": GPIB_bus,
@@ -30,22 +36,6 @@ class AndoLaserClient(LabDeviceClient):
         self._initialize_device(self.init_params)
 
     @property
-    def wavelength(self):
-        return self.get_property("wavelength")
-
-    @wavelength.setter
-    def wavelength(self, value: float | int) -> None:
-        self.set_property("wavelength", value)
-
-    @property
-    def power(self):
-        return self.get_property("power")
-
-    @power.setter
-    def power(self, value: float | int) -> None:
-        self.set_property("power", value)
-
-    @property
     def linewidth(self):
         return self.get_property("linewidth")
 
@@ -53,23 +43,8 @@ class AndoLaserClient(LabDeviceClient):
     def linewidth(self, value: int) -> None:
         self.set_property("linewidth", value)
 
-    def enable(self) -> None:
-        self.call_method("enable")
 
-    def disable(self) -> None:
-        self.call_method("disable")
-
-    def close(self) -> None:
-        self.call_method("close")
-
-    def write(self, command: str) -> None:
-        self.call_method("write", command)
-
-    def query(self, command: str) -> None:
-        self.call_method("query", command)
-
-
-class AgilentLaserClient(LabDeviceClient):
+class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
     def __init__(
         self,
         base_url: str,
@@ -82,7 +57,7 @@ class AgilentLaserClient(LabDeviceClient):
         wl_interp: bool = False,
     ):
         self.init_params = {
-            "wavelength": target_wavelength,
+            "target_wavelength": target_wavelength,
             "power": power,
             "source": source,
             "GPIB_address": GPIB_address,
@@ -101,48 +76,15 @@ class AgilentLaserClient(LabDeviceClient):
         self.set_property("source", value)
 
     @property
-    def wavelength(self) -> float:
-        wl = self.get_property("wavelength")
-        assert isinstance(wl, float) or isinstance(wl, int)
-        return wl
-
-    @wavelength.setter
-    def wavelength(self, value: float | int) -> None:
-        self.set_property("wavelength", value)
-
-    @property
     def unit(self):
         return self.get_property("unit")
 
     @unit.setter
-    def unit(self, value: float | int) -> None:
+    def unit(self, value: str) -> None:
         self.set_property("unit", value)
 
-    @property
-    def power(self):
-        return self.get_property("power")
 
-    @power.setter
-    def power(self, value: float | int) -> None:
-        self.set_property("power", value)
-
-    def enable(self) -> None:
-        self.call_method("enable")
-
-    def disable(self) -> None:
-        self.call_method("disable")
-
-    def write(self, command: str) -> None:
-        self.call_method("write", command)
-
-    def query(self, command: str) -> str:
-        return self.call_method("query", command, expect_response=True)
-
-    def close(self) -> None:
-        self.call_method("close")
-
-
-class TiSapphireClient(LabDeviceClient):
+class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
     def __init__(
         self,
         base_url: str,
@@ -150,17 +92,25 @@ class TiSapphireClient(LabDeviceClient):
         com_port: int | None = None,
         NSL: int = 10,
         PSL: int = 10,
+        smc_path: str | None = None,
+        calibration_path: str | None = None,
+        initial_wavelength: float | None = None,
+        nm_to_pos_slope: float | None = None,
     ):
         self.init_params = {
             "com_port": com_port,
             "NSL": NSL,
             "PSL": PSL,
+            "smc_path": smc_path,
+            "calibration_path": calibration_path,
+            "initial_wavelength": initial_wavelength,
+            "nm_to_pos_slope": nm_to_pos_slope,
         }
         super().__init__(base_url, device_name)
         self._initialize_device(self.init_params)
 
     @property
-    def wavelength(self):
+    def wavelength(self) -> float:
         return self.get_property("wavelength")
 
     @wavelength.setter
@@ -168,23 +118,13 @@ class TiSapphireClient(LabDeviceClient):
         self.set_property("wavelength", value)
 
     def delta_wl_nm(self, value: float) -> None:
-        self.call_method("delta_wl_nm", value)
+        self.call("delta_wl_nm", value=value)
 
     def delta_wl_arb(self, value: float) -> None:
-        self.call_method("delta_wl_arb", value)
+        self.call("delta_wl_arb", value=value)
 
-    def get_pos(self) -> None:
-        self.call_method("get_pos")
-
-    def adjust_wavelength(
-        self,
-        osa: OSAClient,
-        res: float = 0.01,
-        sens: str = "SMID",
-        num_samples: int = 10001,
-        target_error: float = 0.1,
-    ):
-        self.call_method("adjust_wavelength", osa, res, sens, num_samples, target_error)
+    def get_pos(self) -> float:
+        return self.call("get_pos")
 
     def calibrate(
         self,
@@ -195,9 +135,16 @@ class TiSapphireClient(LabDeviceClient):
         interval: float | int = 10,
         padding: float | int = 2,
         res: float | int = 1,
-    ):
-        self.call_method(
-            "calibrate", osa, cal_start, cal_end, cal_step, interval, padding, res
+    ) -> None:
+        self.call(
+            "calibrate",
+            osa_device=osa.device_name,  # pass reference, not object
+            cal_start=cal_start,
+            cal_end=cal_end,
+            cal_step=cal_step,
+            interval=interval,
+            padding=padding,
+            res=res,
         )
 
     def set_wavelength_iterative_method(
@@ -208,16 +155,19 @@ class TiSapphireClient(LabDeviceClient):
         osa_rough_res: float | int = 0.5,
         osa_fine_res: float | int = 0.01,
         error_tolerance: float | int = 0.05,
-    ):
-        self.call_method(
+    ) -> None:
+        self.call(
             "set_wavelength_iterative_method",
-            target_wl,
-            osa,
-            min_peak_val,
-            osa_rough_res,
-            osa_fine_res,
-            error_tolerance,
+            target_wl=target_wl,
+            osa_device=osa.device_name,
+            min_peak_val=min_peak_val,
+            osa_rough_res=osa_rough_res,
+            osa_fine_res=osa_fine_res,
+            error_tolerance=error_tolerance,
         )
+
+    def close(self) -> None:
+        self.call("close")
 
 
 class VerdiLaserClient(LabDeviceClient):
@@ -244,31 +194,31 @@ class VerdiLaserClient(LabDeviceClient):
         self._initialize_device(self.init_params)
 
     def port_pause(self) -> None:
-        self.call_method("port_pause")
+        self.call("port_pause")
 
     def port_clear(self) -> None:
-        self.call_method("port_clear")
+        self.call("port_clear")
 
     def port_close(self) -> None:
-        self.call_method("port_close")
+        self.call("port_close")
 
     def laser_home(self) -> None:
-        self.call_method("laser_home")
+        self.call("laser_home")
 
     def in_waiting(self) -> None:
-        self.call_method("in_waiting")
+        self.call("in_waiting")
 
     def laser_query(self) -> None:
-        self.call_method("laser_query")
+        self.call("laser_query")
 
     def shutdown(self) -> None:
-        self.call_method("shutdown")
+        self.call("shutdown")
 
     def standby_on(self) -> None:
-        self.call_method("standby_on")
+        self.call("standby_on")
 
     def active_on(self) -> None:
-        self.call_method("active_on")
+        self.call("active_on")
 
     @property
     def shutter(self):
