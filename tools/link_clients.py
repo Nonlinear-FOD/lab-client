@@ -47,17 +47,19 @@ def main() -> int:
     # quick import check (uses the venv interpreter)
     # change 'client' if you rename the top-level package dir
     try:
-        check([str(py), "-c", "import client; print('Linked OK ->', client.__file__)"])
+        check(
+            [str(py), "-c", "import clients; print('Linked OK ->', clients.__file__)"]
+        )
     except subprocess.CalledProcessError:
         print(
-            "WARNING: Could not import `client` in the venv; is your top-level package name correct?",
+            "WARNING: Could not import `clients` in the venv; is your top-level package name correct?",
             file=sys.stderr,
         )
 
     print("\nDone.")
     print("Use this interpreter in your project:")
     print(f"  {py}")
-    print("\nNow you can do:\n  from client.some_client import XClient")
+    print("\nNow you can do:\n  from clients.some_client import XClient")
     return 0
 
 
