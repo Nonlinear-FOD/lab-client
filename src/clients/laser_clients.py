@@ -118,10 +118,10 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         self.set_property("wavelength", value)
 
     def delta_wl_nm(self, value: float) -> None:
-        self.call("delta_wl_nm", value=value)
+        self.call("delta_wl_nm", delta_nm=value)
 
     def delta_wl_arb(self, value: float) -> None:
-        self.call("delta_wl_arb", value=value)
+        self.call("delta_wl_arb", delta_pos=value)
 
     def get_pos(self) -> float:
         return self.call("get_pos")

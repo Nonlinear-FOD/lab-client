@@ -39,6 +39,52 @@ class LabDeviceClient:
                 f"Could not retrieve instruments from {url}: {e}"
             ) from e
 
+    def list_connected_instruments(
+        self, probe_idn: bool = False, timeout_ms: int = 300
+    ) -> dict[str, Any]:
+        """
+        Returns VISA resources discovered on the server.
+        If probe_idn=True, the server will try '*IDN?' on each resource
+        using the provided timeout.
+        """
+        url = f"{self.base_url}/system/resources"
+        params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}
+        try:
+            return self._json_or_raise(requests.get(url, params=params))
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError(
+                f"Could not retrieve connected instruments from {url}: {e}"
+            ) from e
+
+    def print_connected_instruments(
+        self, probe_idn: bool = False, timeout_ms: int = 300
+    ) -> None:
+        """
+        Pretty-print a compact summary of connected VISA resources.
+        """
+        data = self.list_connected_instruments(
+            probe_idn=probe_idn, timeout_ms=timeout_ms
+        )
+        visa = data.get("visa", data)  # support either {"visa": {...}} or flat
+        parsed = visa.get("parsed", [])
+        if not parsed:
+            print("No VISA resources found.")
+            return
+        for r in parsed:
+            res = r.get("resource")
+            kind = r.get("kind", "?")
+            idn = r.get("idn")
+            open_err = r.get("open_error")
+            idn_err = r.get("idn_error")
+            line = f"- {res} [{kind}]"
+            if idn:
+                line += f"  → {idn}"
+            elif idn_err:
+                line += f"  (IDN? failed: {idn_err})"
+            if open_err:
+                line += f"  (open failed: {open_err})"
+            print(line)
+
     def _initialize_device(self, init_payload: dict[str, Any]) -> None:
         url = f"{self.device_url}/connect"
         cleaned_payload = {k: v for k, v in init_payload.items() if v is not None}

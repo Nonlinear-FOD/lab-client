@@ -185,6 +185,7 @@ class OSAClient(LabDeviceClient):
     def close(self) -> None:
         self.call("close")
 
-    def __del__(self) -> None:
-        self.stop_sweep()
-        self.close()
+    #
+    # def __del__(self) -> None:
+    #     self.stop_sweep()
+    #     self.close()
