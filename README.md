@@ -16,6 +16,7 @@ osa.sweep()
 print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
 ```
+# Option A
 **Option A (recommended)**
 If you are allergic to a proper setup and virtual environments and just want a quick global setup, use **Option B**.
 **Not recommended**: This can cause dependency/version conflicts across projects. Prefer Option A for reliability.
@@ -110,6 +111,7 @@ print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
 ```
 
+# Option B
 **Option B - Global link (no venv, not recommended)**
 This links the clients into your **user** site-packages with a `.pth` file, so
 `from clients...` works from anywhere. No `uv` required.
