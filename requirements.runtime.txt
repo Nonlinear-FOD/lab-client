@@ -55,6 +55,8 @@ pygments==2.19.2
     #   ipython-pygments-lexers
 pyparsing==3.2.3
     # via matplotlib
+pyserial==3.5
+    # via lab-client (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via matplotlib
 requests==2.32.5
