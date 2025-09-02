@@ -1,0 +1,19 @@
+name: deps
+on:
+  push:
+    paths: ["pyproject.toml", ".github/workflows/deps.yml"]
+  pull_request:
+    paths: ["pyproject.toml", ".github/workflows/deps.yml"]
+
+jobs:
+  deps-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Check deps
+        run: make check-deps
