@@ -8,10 +8,11 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
         base_url: str,
         device_name: str,
         com_port: int | None = None,
+        user: str | None = None,
     ):
         init_params = {"com_port": com_port}
         self.init_params = {k: v for k, v in init_params.items() if v is not None}
-        super().__init__(base_url, device_name)
+        super().__init__(base_url, device_name, user=user)
         self._initialize_device(self.init_params)
 
     def close(self) -> None:

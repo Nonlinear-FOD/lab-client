@@ -6,10 +6,14 @@ from typing import Any
 class LabDeviceClient:
     PROPERTY_METHODS: tuple[str, ...] = ("GET", "POST")
 
-    def __init__(self, base_url: str, device_name: str):
+    def __init__(self, base_url: str, device_name: str, user: str | None = None):
         self.base_url = base_url.rstrip("/")
         self.device_name = device_name
         self.device_url = f"{self.base_url}/devices/{device_name}"
+        self.user = user
+
+    def _headers(self) -> dict[str, str]:
+        return {"X-User": self.user} if self.user else {}
 
     def _json_or_raise(self, resp: requests.Response) -> dict[str, Any]:
         """
@@ -33,7 +37,7 @@ class LabDeviceClient:
     def list_instruments(self) -> dict[str, Any]:
         url = f"{self.base_url}/devices"
         try:
-            return self._json_or_raise(requests.get(url))
+            return self._json_or_raise(requests.get(url, headers=self._headers()))
         except requests.exceptions.RequestException as e:
             raise ConnectionError(
                 f"Could not retrieve instruments from {url}: {e}"
@@ -50,46 +54,21 @@ class LabDeviceClient:
         url = f"{self.base_url}/system/resources"
         params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}
         try:
-            return self._json_or_raise(requests.get(url, params=params))
+            return self._json_or_raise(
+                requests.get(url, params=params, headers=self._headers())
+            )
         except requests.exceptions.RequestException as e:
             raise ConnectionError(
                 f"Could not retrieve connected instruments from {url}: {e}"
             ) from e
 
-    def print_connected_instruments(
-        self, probe_idn: bool = False, timeout_ms: int = 300
-    ) -> None:
-        """
-        Pretty-print a compact summary of connected VISA resources.
-        """
-        data = self.list_connected_instruments(
-            probe_idn=probe_idn, timeout_ms=timeout_ms
-        )
-        visa = data.get("visa", data)  # support either {"visa": {...}} or flat
-        parsed = visa.get("parsed", [])
-        if not parsed:
-            print("No VISA resources found.")
-            return
-        for r in parsed:
-            res = r.get("resource")
-            kind = r.get("kind", "?")
-            idn = r.get("idn")
-            open_err = r.get("open_error")
-            idn_err = r.get("idn_error")
-            line = f"- {res} [{kind}]"
-            if idn:
-                line += f"  → {idn}"
-            elif idn_err:
-                line += f"  (IDN? failed: {idn_err})"
-            if open_err:
-                line += f"  (open failed: {open_err})"
-            print(line)
-
     def _initialize_device(self, init_payload: dict[str, Any]) -> None:
         url = f"{self.device_url}/connect"
         cleaned_payload = {k: v for k, v in init_payload.items() if v is not None}
         try:
-            self._json_or_raise(requests.post(url, json=cleaned_payload))
+            self._json_or_raise(
+                requests.post(url, json=cleaned_payload, headers=self._headers())
+            )
         except requests.exceptions.RequestException as e:
             raise ConnectionError(
                 f"Could not connect to device at {self.base_url}: {e}"
@@ -101,13 +80,15 @@ class LabDeviceClient:
             raise ValueError(f"Method must be {' or '.join(self.PROPERTY_METHODS)}")
         try:
             if method == "GET":
-                data = self._json_or_raise(requests.get(url))
+                data = self._json_or_raise(requests.get(url, headers=self._headers()))
                 result = data.get("value")
                 if isinstance(result, list):
                     return np.array(result)
                 return result
             else:  # POST setter
-                data = self._json_or_raise(requests.post(url, json={"value": value}))
+                data = self._json_or_raise(
+                    requests.post(url, json={"value": value}, headers=self._headers())
+                )
                 return data
         except requests.exceptions.ConnectionError:
             raise ConnectionError(f"Could not reach {self.base_url}")
@@ -120,7 +101,7 @@ class LabDeviceClient:
 
     def disconnect(self) -> None:
         url = f"{self.base_url}/devices/{self.device_name}/disconnect"
-        self._json_or_raise(requests.post(url))
+        self._json_or_raise(requests.post(url, headers=self._headers()))
 
     def call(self, name: str, **kwargs: Any) -> Any:
         """
@@ -128,7 +109,9 @@ class LabDeviceClient:
         Returns the 'result' field (converted to numpy arrays where appropriate).
         """
         url = f"{self.device_url}/{name}"
-        resp = self._json_or_raise(requests.post(url, json=kwargs or {}))
+        resp = self._json_or_raise(
+            requests.post(url, json=kwargs or {}, headers=self._headers())
+        )
         result = resp.get("result")
         if isinstance(result, list):
             try:
