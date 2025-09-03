@@ -79,6 +79,7 @@ This writes a `.pth` file into your `.venv` so you can do clean imports like:
 ```python
 from clients.laser_clients import AndoLaserClient
 ```
+NOTE: If your `<path-to>` has spaces, put quotes around it `'<path-to>'`.
 
 # 5. Install dependencies
 The repo includes a pinned set of runtime dependencies in `requirements.runtime.txt`.
