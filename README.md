@@ -61,7 +61,7 @@ Make a directory (or folder) for your experiment wherever you want (separate fro
 ```bash
 cd my-experiment
 ```
-Do all of the rest of the steps from your my-experiment directory.
+Do all of the rest of the steps from your `my-experiment` directory.
 
 # 3. Create a virtual environment
 Use `uv` to create a fresh environment inside your project:
@@ -73,7 +73,7 @@ This creates a `.venv/` directory inside `my-experiment/`.
 # 4. Link the lab-clients into your venv
 Run the helper script from the cloned repo to make the clients importable:
 ```bash
-python <path-to>//lab-client/tools/link_clients.py
+python <path-to>/lab-client/tools/link_clients.py
 ```
 This writes a `.pth` file into your `.venv` so you can do clean imports like:
 ```python
