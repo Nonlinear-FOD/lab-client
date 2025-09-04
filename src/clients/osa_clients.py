@@ -17,6 +17,7 @@ class OSAClient(LabDeviceClient):
         GPIB_address: int | None = None,
         GPIB_bus: int | None = None,
         zero_nm_sweeptime: int | None = None,
+        user: str | None = None,
     ):
         init_params = {
             "span": span,
@@ -30,7 +31,7 @@ class OSAClient(LabDeviceClient):
             "zero_nm_sweeptime": zero_nm_sweeptime,
         }
         self.init_params = {k: v for k, v in init_params.items() if v is not None}
-        super().__init__(base_url, device_name)
+        super().__init__(base_url, device_name, user=user)
         self._initialize_device(self.init_params)
 
     @property
