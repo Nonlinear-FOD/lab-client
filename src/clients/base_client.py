@@ -6,14 +6,26 @@ from typing import Any
 class LabDeviceClient:
     PROPERTY_METHODS: tuple[str, ...] = ("GET", "POST")
 
-    def __init__(self, base_url: str, device_name: str, user: str | None = None):
+    def __init__(
+        self,
+        base_url: str,
+        device_name: str,
+        user: str | None = None,
+        debug: bool = False,
+    ):
         self.base_url = base_url.rstrip("/")
         self.device_name = device_name
         self.device_url = f"{self.base_url}/devices/{device_name}"
         self.user = user
+        self.debug = bool(debug)
 
     def _headers(self) -> dict[str, str]:
-        return {"X-User": self.user} if self.user else {}
+        headers: dict[str, str] = {}
+        if self.user:
+            headers["X-User"] = self.user
+        if self.debug:
+            headers["X-Debug"] = "1"
+        return headers
 
     def _json_or_raise(self, resp: requests.Response) -> dict[str, Any]:
         """

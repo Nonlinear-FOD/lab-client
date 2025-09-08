@@ -25,6 +25,7 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
         GPIB_bus: int | None = None,
         wl_interp: bool = False,
         user: str | None = None,
+        debug: bool = False,
     ):
         self.init_params = {
             "target_wavelength": target_wavelength,
@@ -33,7 +34,7 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
             "GPIB_bus": GPIB_bus,
             "wl_interp": wl_interp,
         }
-        super().__init__(base_url, device_name, user=user)
+        super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
 
     @property
@@ -57,6 +58,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
         GPIB_bus: int | None = None,
         wl_interp: bool = False,
         user: str | None = None,
+        debug: bool = False,
     ):
         self.init_params = {
             "target_wavelength": target_wavelength,
@@ -66,7 +68,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
             "GPIB_bus": GPIB_bus,
             "wl_interp": wl_interp,
         }
-        super().__init__(base_url, device_name, user=user)
+        super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
 
     @property
@@ -99,6 +101,7 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         initial_wavelength: float | None = None,
         nm_to_pos_slope: float | None = None,
         user: str | None = None,
+        debug: bool = False,
     ):
         self.init_params = {
             "com_port": com_port,
@@ -109,7 +112,7 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
             "initial_wavelength": initial_wavelength,
             "nm_to_pos_slope": nm_to_pos_slope,
         }
-        super().__init__(base_url, device_name, user=user)
+        super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
 
     @property
@@ -185,6 +188,7 @@ class VerdiLaserClient(LabDeviceClient):
         stopbits: int = 1,
         timeout: int = 2,
         user: str | None = None,
+        debug: bool = False,
     ):
         self.init_params = {
             "com_port": com_port,
@@ -194,7 +198,7 @@ class VerdiLaserClient(LabDeviceClient):
             "stopbits": stopbits,
             "timeout": timeout,
         }
-        super().__init__(base_url, device_name, user=user)
+        super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
 
     def port_pause(self) -> None:
