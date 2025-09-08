@@ -6,7 +6,6 @@ Prerequisite: Install `git` (Windows)
 
 1. Go to [https://git-scm.com/download/win](https://git-scm.com/download/win).  
 2. Download the installer and run it with default options.  
-3. After installation, verify in a new terminal (PowerShell or VS Code terminal):
 
 Quick start
 
