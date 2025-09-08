@@ -174,9 +174,6 @@ class OSAClient(LabDeviceClient):
     def update_spectrum(self) -> None:
         self.call("update_spectrum")
 
-    def save(self, filename: str) -> None:
-        self.call("save", filename=filename)
-
     def set_power_marker(self, marker: int, power: float) -> None:
         self.call("set_power_marker", marker=marker, power=power)
 
@@ -185,8 +182,3 @@ class OSAClient(LabDeviceClient):
 
     def close(self) -> None:
         self.call("close")
-
-    #
-    # def __del__(self) -> None:
-    #     self.stop_sweep()
-    #     self.close()

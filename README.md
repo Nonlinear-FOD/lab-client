@@ -1,111 +1,48 @@
-# Installation and Setup Guide for Lab Clients in the FOD Lab
-These clients are for remote controlling instruments running on Nonlinear-FOD/lab-server using FastAPI.
-They provide a clean Python API, e.g.:
+# Lab Clients — Quick Setup
+
+These clients provide a clean Python API to control instruments exposed by the lab server (FastAPI).
+
+Quick start
+- Clone the repo somewhere convenient:
+
+  ```bash
+  cd <wherever-you-want>
+  git clone https://github.com/Nonlinear-FOD/lab-client
+  ```
+
+- Create (or open) your experiment folder and run the installer from there:
+
+  ```bash
+  cd <your-experiment>
+  python <path-to>/lab-client/tools/setup_venv.py
+  ```
+
+Use in your IDE
+- If you open/run your IDE in `<your-experiment>`, most IDEs auto-detect `.venv/` and use it automatically.
+- Note: If that doesn’t happen, manually select the interpreter:
+  - Windows: `<your-experiment>\.venv\Scripts\python.exe`
+  - macOS/Linux: `<your-experiment>/.venv/bin/python`
+
+Example usage
 ```python
 from clients.laser_clients import AndoLaserClient
 from clients.osa_clients import OSAClient
 
 server = "http://<server-ip>:5000"
 
-# Connect to devices
-laser = AndoLaserClient(server, "ando_laser_1", target_wavelength=1550, power=0)
-osa = OSAClient(server, "osa_1", span=(1545, 1555))
-
-laser.enable()
-osa.sweep()
-print("Laser wl:", laser.wavelength)
-print("OSA points:", len(osa.wavelengths))
-```
-# Option A
-**Option A (recommended)**
-If you are allergic to a proper setup and virtual environments and just want a quick global setup, use **Option B**.
-**Not recommended**: This can cause dependency/version conflicts across projects. Prefer Option A for reliability.
-
-# 0. Make sure uv and git is installed on your pc
-`uv` is a modern Python package and environment manager recommended for creating and managing virtual environments.  
-We also need `git` to clone the `lab-client` repository.
-
-## Install `git` (Windows)
-
-1. Go to [https://git-scm.com/download/win](https://git-scm.com/download/win).  
-2. Download the installer (64-bit recommended) and run it with default options.  
-3. After installation, verify in a new terminal (PowerShell or VS Code terminal):
-
-```powershell
-git --version
-```
-## Install `uv`
-`uv` is easily installed with `pip`:
-```bash
-pip install uv
-```
-Confirm installation:
-```powershell
-uv --version
-```
-
-# 1. Clone the repository
-First, go to any directory you want to have the lab-client repository installed and then clone it to your computer:
-```bash
-cd <wherever-you-want>
-git clone https://github.com/Nonlinear-FOD/lab-client
-```
-Then create a new branch (so your changes don’t go directly on `main`):
-```bash
-cd lab-client
-git checkout -b my-branch
-```
-
-# 2. Create your project directory
-Make a directory (or folder) for your experiment wherever you want (separate from the cloned repo) and go to that directory:
-```bash
-cd my-experiment
-```
-Do all of the rest of the steps from your `my-experiment` directory.
-
-# 3. Create a virtual environment
-Use `uv` to create a fresh environment inside your project:
-```bash
-uv venv
-```
-This creates a `.venv/` directory inside `my-experiment/`.
-
-# 4. Link the lab-clients into your venv
-Run the helper script from the cloned repo to make the clients importable:
-```bash
-python <path-to>/lab-client/tools/link_clients.py
-```
-This writes a `.pth` file into your `.venv` so you can do clean imports like:
-```python
-from clients.laser_clients import AndoLaserClient
-```
-NOTE: If your `<path-to>` has spaces, put quotes around it `'<path-to>'`.
-
-# 5. Install dependencies
-The repo includes a pinned set of runtime dependencies in `requirements.runtime.txt`.
-Install them into your venv:
-```bash
-uv pip install -r <path-to>/lab-client/requirements.runtime.txt
-```
-
-# 6. Verify installation
-Check that everything works by running:
-```bash
-uv run python -c "from clients.osa_clients import OSAClient; print('Import OK')"
-```
-If you see `Import OK`, you are ready.
-
-# 7. Use in your project
-Now you can use the clients in your code or notebooks. For example:
-```python
-from clients.laser_clients import AndoLaserClient
-from clients.osa_clients import OSAClient
-
-server = "http://<server-ip>:5000"
-
-# Connect to devices
-laser = AndoLaserClient(server, "ando_laser_1", target_wavelength=1550, power=0)
-osa = OSAClient(server, "osa_1", span=(1545, 1555))
+laser = AndoLaserClient(
+    server,
+    "ando_laser_1",
+    target_wavelength=1550,
+    power=0,
+    user="<your-name>",
+)
+osa = OSAClient(
+    server,
+    "osa_1",
+    span=(1545, 1555),
+    user="<your-name>",
+)
 
 laser.enable()
 osa.sweep()
@@ -113,45 +50,18 @@ print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
 ```
 
-# Option B
-**Option B - Global link (no venv, not recommended)**
-This links the clients into your **user** site-packages with a `.pth` file, so
-`from clients...` works from anywhere. No `uv` required.
-# 0. Prerequisites
-- Git (see installation above)
-# 1. Clone
-First, go to any directory you want to have the lab-client repository installed and then clone it to your computer:
-```bash
-cd <wherever-you-want>
-git clone https://github.com/Nonlinear-FOD/lab-client
-```
-Then create a new branch (so your changes don’t go directly on `main`):
-```bash
-cd lab-client
-git checkout -b my-branch
-```
-# 2. Link the clients globally (user site-packages)
-Run the helper script (ships in this repo) to drop a `.pth` file into your user site-packages:
-```bash
-python /path/to/lab-client/tools/link_global.py
-```
-You should see it print something like:
-```bash
-Wrote: C:\Users\YOU\AppData\Roaming\Python\Python3x\site-packages\lab_clients_src.pth
-```
-# 3. Install runtime dependencies globally (user install)
-Use `pip` with `--user` to avoid admin rights and avoid touching system Python:
-```bash
-python -m pip install --user -r /path/to/lab-client/requirements.runtime.txt
-```
+What the setup script does
+- uv install: Installs Astral’s `uv` using the official installer.
+  - Windows: runs PowerShell with ExecutionPolicy Bypass and executes `install.ps1`.
+  - macOS/Linux: runs `curl -LsSf https://astral.sh/uv/install.sh | sh` (falls back to a Python download if needed).
+  - Windows PATH: best‑effort to add the uv bin directory to the user PATH (HKCU\Environment) and broadcast the change.
+- Python 3.12 venv: Creates `.venv/` in your experiment folder via `uv venv --python 3.12` (downloads 3.12 if missing).
+- Dependencies: Installs pinned runtime deps from `requirements.runtime.txt` into the venv using `uv pip`.
+- Client linking: Runs `tools/link_clients.py` to add a `.pth` file into the venv’s site‑packages, so `from clients ...` imports work.
+- Import check: Verifies `from clients.osa_clients import OSAClient` with the venv’s Python.
 
-# 4. Verify installation
-Check that everything works by running:
-```bash
-uv run python -c "from clients.osa_clients import OSAClient; print('Import OK')"
-```
-If it prints `Import OK`, you can use the clients from any folder:
-```python
-from clients.laser_clients import AndoLaserClient
-from clients.osa_clients import OSAClient
-```
+Where things are installed
+- uv binary: Typically `~/.local/bin/uv` on macOS/Linux; on Windows under `%USERPROFILE%\AppData\Local\Programs\uv\bin\uv.exe`.
+- Project venv: `<your-experiment>/.venv/` (managed by uv, Python 3.12).
+- Dependencies: Installed into the project venv.
+- Clients link: A `.pth` file is written into the venv’s site‑packages to point at `lab-client/src`.
