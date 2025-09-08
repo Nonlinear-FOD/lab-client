@@ -2,7 +2,7 @@
 
 These clients provide a clean Python API to control instruments exposed by the lab server (FastAPI).
 
-## Prerequisite: Install `git` (Windows)
+Prerequisite: Install `git` (Windows)
 
 1. Go to [https://git-scm.com/download/win](https://git-scm.com/download/win).  
 2. Download the installer (64-bit recommended) and run it with default options.  
