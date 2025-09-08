@@ -30,8 +30,19 @@ from clients.osa_clients import OSAClient
 
 server = "http://<server-ip>:5000"
 
-laser = AndoLaserClient(server, "ando_laser_1", target_wavelength=1550, power=0)
-osa = OSAClient(server, "osa_1", span=(1545, 1555))
+laser = AndoLaserClient(
+    server,
+    "ando_laser_1",
+    target_wavelength=1550,
+    power=0,
+    user="<your-name>",
+)
+osa = OSAClient(
+    server,
+    "osa_1",
+    span=(1545, 1555),
+    user="<your-name>",
+)
 
 laser.enable()
 osa.sweep()
@@ -54,7 +65,3 @@ Where things are installed
 - Project venv: `<your-experiment>/.venv/` (managed by uv, Python 3.12).
 - Dependencies: Installed into the project venv.
 - Clients link: A `.pth` file is written into the venv’s site‑packages to point at `lab-client/src`.
-
-Notes
-- Corporate Windows: If policy blocks modifying PATH, the setup still completes and uses uv for this run; new shells may need IT to add the uv bin directory to PATH.
-- macOS/Linux PATH: Ensure `~/.local/bin` is on your shell PATH so `uv` is available in new terminals.
