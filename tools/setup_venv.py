@@ -65,6 +65,74 @@ def find_uv() -> str | None:
     return None
 
 
+def _supports_uv_pip(uv_exe: str) -> bool:
+    try:
+        subprocess.run(
+            [uv_exe, "pip", "--help"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _persist_uv_path(uv_exe: str) -> None:
+    uv_dir = str(Path(uv_exe).parent)
+    if os.name == "nt":
+        try:
+            import winreg  # type: ignore
+
+            # Update user PATH in HKCU\Environment
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ
+            )
+            try:
+                current, _ = winreg.QueryValueEx(key, "Path")
+            except FileNotFoundError:
+                current = ""
+            finally:
+                winreg.CloseKey(key)
+
+            parts = [p for p in current.split(";") if p]
+            if uv_dir not in parts:
+                new = (
+                    current
+                    + (";" if current and not current.endswith(";") else "")
+                    + uv_dir
+                )
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE
+                )
+                winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new)
+                winreg.CloseKey(key)
+                # Broadcast environment change
+                try:
+                    import ctypes
+
+                    HWND_BROADCAST = 0xFFFF
+                    WM_SETTINGCHANGE = 0x001A
+                    ctypes.windll.user32.SendMessageTimeoutW(
+                        HWND_BROADCAST,
+                        WM_SETTINGCHANGE,
+                        0,
+                        "Environment",
+                        0,
+                        5000,
+                        ctypes.byref(ctypes.c_ulong()),
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            # If we cannot persist, we still proceed; current process PATH is augmented
+            pass
+    else:
+        # POSIX: avoid editing shell rc files automatically. Ensure current process PATH
+        # includes ~/.local/bin for this run; users can add it permanently if desired.
+        pass
+
+
 def install_uv_official() -> None:
     if os.name == "nt":
         # Use PowerShell with ExecutionPolicy Bypass to run the official installer
@@ -98,18 +166,23 @@ def install_uv_official() -> None:
 
 def ensure_uv() -> str:
     uv = find_uv()
-    if uv:
+    if uv and _supports_uv_pip(uv):
         return uv
-    print("`uv` not found; installing via official installer …")
+    print("`uv` not found or `uv pip` unavailable; installing via official installer …")
     install_uv_official()
     # Make sure this process can find it without a restart
     _augment_env_path_for_current_process()
-    uv = find_uv()
-    if uv:
+    # Prefer PATH first
+    uv = shutil.which("uv")
+    if uv and _supports_uv_pip(uv):
         return uv
+    # Scan known candidate locations
+    for p in _uv_candidate_paths():
+        if p.exists() and _supports_uv_pip(str(p)):
+            return str(p)
     raise RuntimeError(
-        "`uv` installation completed, but the executable was not found.\n"
-        "Ensure that your shell PATH includes the uv install directory (e.g. ~/.local/bin on POSIX)."
+        "`uv` installation completed, but a working `uv pip` was not found.\n"
+        "Ensure uv is on PATH and is the Astral uv (check `uv --version`)."
     )
 
 
@@ -131,6 +204,8 @@ def main() -> int:
     # 1) Ensure uv is present
     uv = ensure_uv()
     print(f"Using uv: {uv}")
+    # Try to persist uv on PATH for future shells
+    _persist_uv_path(uv)
 
     # 2) Create venv if missing
     py = venv_python(project)
@@ -163,14 +238,8 @@ def main() -> int:
     if not reqs.exists():
         raise FileNotFoundError(f"Missing requirements file: {reqs}")
     print(f"Installing dependencies from {reqs} …")
-    # Prefer uv pip into the specific venv. Fallback to ensurepip + pip.
-    try:
-        run([uv, "pip", "install", "-r", str(reqs), "--python", str(py)])
-    except subprocess.CalledProcessError:
-        print("`uv pip` failed or pip missing in venv; bootstrapping pip …")
-        run([str(py), "-m", "ensurepip", "--upgrade"])  # ensure pip in venv
-        run([str(py), "-m", "pip", "install", "--upgrade", "pip"])  # modern pip
-        run([str(py), "-m", "pip", "install", "-r", str(reqs)])
+    # Install deps using uv pip targeting the venv (no pip fallback)
+    run([uv, "pip", "install", "-r", str(reqs), "--python", str(py)])
 
     # 4) Link the clients into this venv
     link_script = repo_tools / "link_clients.py"
