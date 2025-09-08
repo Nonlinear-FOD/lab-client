@@ -18,8 +18,6 @@ print("OSA points:", len(osa.wavelengths))
 ```
 # Option A
 **Option A (recommended)**
-If you are allergic to a proper setup and virtual environments and just want a quick global setup, use **Option B**.
-**Not recommended**: This can cause dependency/version conflicts across projects. Prefer Option A for reliability.
 
 # 0. Make sure uv and git is installed on your pc
 `uv` is a modern Python package and environment manager recommended for creating and managing virtual environments.  
@@ -111,47 +109,4 @@ laser.enable()
 osa.sweep()
 print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
-```
-
-# Option B
-**Option B - Global link (no venv, not recommended)**
-This links the clients into your **user** site-packages with a `.pth` file, so
-`from clients...` works from anywhere. No `uv` required.
-# 0. Prerequisites
-- Git (see installation above)
-# 1. Clone
-First, go to any directory you want to have the lab-client repository installed and then clone it to your computer:
-```bash
-cd <wherever-you-want>
-git clone https://github.com/Nonlinear-FOD/lab-client
-```
-Then create a new branch (so your changes don’t go directly on `main`):
-```bash
-cd lab-client
-git checkout -b my-branch
-```
-# 2. Link the clients globally (user site-packages)
-Run the helper script (ships in this repo) to drop a `.pth` file into your user site-packages:
-```bash
-python /path/to/lab-client/tools/link_global.py
-```
-You should see it print something like:
-```bash
-Wrote: C:\Users\YOU\AppData\Roaming\Python\Python3x\site-packages\lab_clients_src.pth
-```
-# 3. Install runtime dependencies globally (user install)
-Use `pip` with `--user` to avoid admin rights and avoid touching system Python:
-```bash
-python -m pip install --user -r /path/to/lab-client/requirements.runtime.txt
-```
-
-# 4. Verify installation
-Check that everything works by running:
-```bash
-uv run python -c "from clients.osa_clients import OSAClient; print('Import OK')"
-```
-If it prints `Import OK`, you can use the clients from any folder:
-```python
-from clients.laser_clients import AndoLaserClient
-from clients.osa_clients import OSAClient
 ```
