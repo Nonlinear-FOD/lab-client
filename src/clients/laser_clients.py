@@ -24,6 +24,7 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
         GPIB_address: int | None = None,
         GPIB_bus: int | None = None,
         wl_interp: bool = False,
+        timeout_s: float | None = None,
         user: str | None = None,
         debug: bool = False,
     ):
@@ -33,6 +34,7 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
             "GPIB_address": GPIB_address,
             "GPIB_bus": GPIB_bus,
             "wl_interp": wl_interp,
+            "timeout_s": timeout_s,
         }
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
@@ -57,6 +59,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
         GPIB_address: int | None = None,
         GPIB_bus: int | None = None,
         wl_interp: bool = False,
+        timeout_s: float | None = None,
         user: str | None = None,
         debug: bool = False,
     ):
@@ -67,6 +70,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
             "GPIB_address": GPIB_address,
             "GPIB_bus": GPIB_bus,
             "wl_interp": wl_interp,
+            "timeout_s": timeout_s,
         }
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
@@ -186,7 +190,7 @@ class VerdiLaserClient(LabDeviceClient):
         bytesize: int = 8,
         parity=serial.PARITY_NONE,
         stopbits: int = 1,
-        timeout: int = 2,
+        timeout_s: int = 2,
         user: str | None = None,
         debug: bool = False,
     ):
@@ -196,7 +200,7 @@ class VerdiLaserClient(LabDeviceClient):
             "bytesize": bytesize,
             "parity": parity,
             "stopbits": stopbits,
-            "timeout": timeout,
+            "timeout_s": timeout_s,
         }
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(self.init_params)
