@@ -31,12 +31,12 @@ class ThorlabsMPC320Client(LabDeviceClient):
 
     # Properties
     @property
-    def velocity(self) -> float:
-        return float(self.get_property("velocity"))
+    def velocity(self) -> int:
+        return int(self.get_property("velocity"))
 
     @velocity.setter
-    def velocity(self, value: float) -> None:
-        self.set_property("velocity", float(value))
+    def velocity(self, value: int) -> None:
+        self.set_property("velocity", int(value))
 
     # Motion methods
     def get_position(self, paddle_num: int) -> float:
@@ -62,4 +62,3 @@ class ThorlabsMPC320Client(LabDeviceClient):
 
     def close(self) -> None:
         self.call("close")
-
