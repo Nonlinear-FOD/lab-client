@@ -3,7 +3,10 @@ import numpy as np
 
 
 class OSAClient(LabDeviceClient):
-    # TODO: Add a docstring
+    """Client for Ando Optical Spectrum Analyzer.
+
+    Server-side driver: devices.osa_control.OSA
+    """
     def __init__(
         self,
         base_url: str,

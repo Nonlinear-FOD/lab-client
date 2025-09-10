@@ -3,6 +3,10 @@ from typing import Any
 
 
 class ThorlabsMPC320Client(LabDeviceClient):
+    """Client for Thorlabs MPC320 polarization controller.
+
+    Server-side driver: devices.thorlabs_mpc320.ThorlabsMPC320
+    """
     def __init__(
         self,
         base_url: str,

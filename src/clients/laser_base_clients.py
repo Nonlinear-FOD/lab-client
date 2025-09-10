@@ -7,6 +7,10 @@ from .osa_clients import OSAClient
 
 
 class TunableLaserClientBase(LabDeviceClient):
+    """Base helpers for tunable laser clients (wavelength/power, enable/disable).
+
+    Mixed into device-specific clients; not bound to a single server driver.
+    """
     # Common helpers most tunable lasers expose
     @property
     def wavelength(self) -> float:
@@ -42,6 +46,7 @@ class _HasProps(Protocol):
 
 
 class PowerSettable(_HasProps):
+    """Mixin that exposes a standard 'power' property on laser clients."""
     @property
     def power(self) -> float:
         return self.get_property("power")
@@ -57,6 +62,7 @@ class OSAClientLike(Protocol):
 
 
 class OSATuningClientMixin(_HasProps):
+    """Mixin providing OSA-assisted wavelength adjustment on lasers."""
     def adjust_wavelength(
         self,
         osa: OSAClientLike | str,

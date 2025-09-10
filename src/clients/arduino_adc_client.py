@@ -2,12 +2,16 @@ from clients.base_client import LabDeviceClient
 
 
 class ArduinoADCClient(LabDeviceClient):
+    """Client for Arduino ADC (power meter) service.
+
+    Server-side driver: devices.arduino_adc.ArduinoADC
+    """
     def __init__(
         self,
         base_url: str,
         device_name: str,
         *,
-        port: str | None = None,
+        com_port: int | None = None,
         baudrate: int | None = None,
         bytesize: int | None = None,
         parity: str | None = None,
@@ -18,7 +22,7 @@ class ArduinoADCClient(LabDeviceClient):
         debug: bool = False,
     ) -> None:
         init_params = {
-            "port": port,
+            "com_port": com_port,
             "baudrate": baudrate,
             "bytesize": bytesize,
             "parity": parity,

@@ -3,7 +3,13 @@ from typing import Any
 
 
 class PolarizationOptimizerClient(LabDeviceClient):
-    def __init__(self, base_url: str, device_name: str = "pol_opt", debug: bool = False) -> None:
+    """Client for Polarization Optimizer service.
+
+    Server-side driver: devices.pol_opt_service.PolarizationOptimizer
+    """
+    def __init__(
+        self, base_url: str, device_name: str = "pol_opt", debug: bool = False
+    ) -> None:
         # no user header needed; server config sets no_lock=true for this service
         super().__init__(base_url, device_name, user=None, debug=debug)
         # stateless: connect without init params
@@ -14,9 +20,8 @@ class PolarizationOptimizerClient(LabDeviceClient):
         mpc_device: str,
         pm_device: str,
         paddle_num: int,
-        start_pos: float,
-        end_pos: float,
-        step_size: float,
+        start_pos: float = 0.0,
+        end_pos: float = 165.9,
         max_or_min: str = "max",
     ) -> dict:
         return self.call(
@@ -26,7 +31,6 @@ class PolarizationOptimizerClient(LabDeviceClient):
             paddle_num=paddle_num,
             start_pos=start_pos,
             end_pos=end_pos,
-            step_size=step_size,
             max_or_min=max_or_min,
         )
 
@@ -34,9 +38,8 @@ class PolarizationOptimizerClient(LabDeviceClient):
         self,
         mpc_device: str,
         pm_device: str,
-        start_pos: float,
-        end_pos: float,
-        step_size: float,
+        start_pos: float = 0.0,
+        end_pos: float = 165.9,
         max_or_min: str = "max",
     ) -> dict:
         return self.call(
@@ -45,7 +48,6 @@ class PolarizationOptimizerClient(LabDeviceClient):
             pm_device=pm_device,
             start_pos=start_pos,
             end_pos=end_pos,
-            step_size=step_size,
             max_or_min=max_or_min,
         )
 
@@ -76,12 +78,10 @@ class PolarizationOptimizerClient(LabDeviceClient):
         mpc_a_device: str,
         mpc_b_device: str | None = None,
         mpc_c_device: str | None = None,
-        *,
         max_or_min: str = "max",
         tolerance: float | None = None,
         start_pos: float = 0.0,
         end_pos: float = 165.9,
-        step_size: float = 1.0,
     ) -> dict:
         payload: dict[str, Any] = {
             "pm_device": pm_device,
@@ -89,7 +89,6 @@ class PolarizationOptimizerClient(LabDeviceClient):
             "max_or_min": max_or_min,
             "start_pos": start_pos,
             "end_pos": end_pos,
-            "step_size": step_size,
         }
         if tolerance is not None:
             payload["tolerance"] = tolerance

@@ -2,7 +2,10 @@ from .base_client import LabDeviceClient
 
 
 class BoxoptronicsEDFAClient(LabDeviceClient):
-    # TODO: Add a docstring
+    """Client for Box Optronics EDFA amplifier.
+
+    Server-side driver: devices.boxoptronics_edfa.BoxoptronicsEDFA
+    """
     def __init__(
         self,
         base_url: str,

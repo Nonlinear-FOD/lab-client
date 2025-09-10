@@ -15,6 +15,10 @@ from clients.osa_clients import OSAClient
 
 
 class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
+    """Client for Ando tunable laser.
+
+    Server-side driver: devices.laser_control.AndoLaser
+    """
     def __init__(
         self,
         base_url: str,
@@ -49,6 +53,10 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
 
 
 class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
+    """Client for Agilent tunable laser.
+
+    Server-side driver: devices.laser_control.AgilentLaser
+    """
     def __init__(
         self,
         base_url: str,
@@ -93,6 +101,10 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
 
 
 class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
+    """Client for Ti:Sapphire laser.
+
+    Server-side driver: devices.tisa_control.TiSapphire
+    """
     def __init__(
         self,
         base_url: str,
@@ -181,6 +193,10 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
 
 
 class VerdiLaserClient(LabDeviceClient):
+    """Client for Coherent Verdi laser.
+
+    Server-side driver: devices.verdi_laser.VerdiLaser
+    """
     def __init__(
         self,
         base_url: str,
@@ -231,6 +247,9 @@ class VerdiLaserClient(LabDeviceClient):
 
     def active_on(self) -> None:
         self.call("active_on")
+
+    def close(self) -> None:
+        self.disconnect()
 
     @property
     def shutter(self):
