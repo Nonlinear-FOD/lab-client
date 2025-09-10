@@ -112,6 +112,15 @@ class LabDeviceClient:
         self._request(name, "POST", value)
 
     def disconnect(self) -> None:
+        """
+        Fully tear down the server-side device instance.
+
+        Workflow:
+        - Sends POST /devices/{name}/disconnect
+        - Server calls the device's own close(), removes the cached instance,
+          and releases any user lock so a future connect creates a fresh instance.
+        - All client .close() methods delegate to .disconnect() for consistency.
+        """
         url = f"{self.base_url}/devices/{self.device_name}/disconnect"
         self._json_or_raise(requests.post(url, headers=self._headers()))
 

@@ -177,7 +177,7 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         )
 
     def close(self) -> None:
-        self.call("close")
+        self.disconnect()
 
 
 class VerdiLaserClient(LabDeviceClient):

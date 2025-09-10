@@ -184,4 +184,4 @@ class OSAClient(LabDeviceClient):
         self.call("set_wavelength_marker", marker=marker, wavelength=wavelength)
 
     def close(self) -> None:
-        self.call("close")
+        self.disconnect()

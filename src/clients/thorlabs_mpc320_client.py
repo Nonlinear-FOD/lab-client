@@ -61,4 +61,4 @@ class ThorlabsMPC320Client(LabDeviceClient):
         self.call("home", **payload)
 
     def close(self) -> None:
-        self.call("close")
+        self.disconnect()

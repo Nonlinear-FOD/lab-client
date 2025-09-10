@@ -24,7 +24,7 @@ class TunableLaserClientBase(LabDeviceClient):
 
     def close(self) -> None:
         self.disable()
-        self.call("close")
+        self.disconnect()
 
     def write(self, command: str) -> None:
         self.call("write", command=command)

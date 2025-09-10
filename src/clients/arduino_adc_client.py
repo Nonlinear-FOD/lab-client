@@ -36,5 +36,4 @@ class ArduinoADCClient(LabDeviceClient):
         return float(resp)
 
     def close(self) -> None:
-        self.call("close")
-
+        self.disconnect()

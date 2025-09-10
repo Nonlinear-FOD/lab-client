@@ -17,7 +17,7 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
         self._initialize_device(self.init_params)
 
     def close(self) -> None:
-        self.call("close")
+        self.disconnect()
 
     def read_status(self) -> dict:
         return self.call("read_status")
