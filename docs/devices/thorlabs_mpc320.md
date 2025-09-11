@@ -21,3 +21,9 @@ mpc.close()
 - Motion calls are blocking on the server and accept a timeout.
 - Use the Polarization Optimizer service for continuous move+monitor workflows.
 
+## API Reference
+
+::: clients.thorlabs_mpc320_client.ThorlabsMPC320Client
+    options:
+      show_source: false
+      members_order: source

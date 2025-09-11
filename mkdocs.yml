@@ -21,6 +21,13 @@ nav:
       - OSA: devices/osa.md
       - Thorlabs PM100: devices/thorlabs_pm.md
       - Thorlabs MPC320: devices/thorlabs_mpc320.md
+      - Box Optronics EDFA: devices/boxoptronics_edfa.md
+      - Lasers:
+          - Base & Mixins: devices/lasers/base.md
+          - Ando: devices/lasers/ando.md
+          - Agilent: devices/lasers/agilent.md
+          - Ti:Sapphire: devices/lasers/tisa.md
+          - Verdi: devices/verdi.md
   - Services:
       - Overview: services/overview.md
       - Polarization Optimizer: services/polarization_optimizer.md

@@ -6,6 +6,7 @@ class ArduinoADCClient(LabDeviceClient):
 
     Server-side driver: devices.arduino_adc.ArduinoADC
     """
+
     def __init__(
         self,
         base_url: str,
@@ -14,7 +15,6 @@ class ArduinoADCClient(LabDeviceClient):
         com_port: int | None = None,
         baudrate: int | None = None,
         bytesize: int | None = None,
-        parity: str | None = None,
         stopbits: int | None = None,
         timeout_s: float | None = None,
         terminator: str | None = None,
@@ -25,7 +25,6 @@ class ArduinoADCClient(LabDeviceClient):
             "com_port": com_port,
             "baudrate": baudrate,
             "bytesize": bytesize,
-            "parity": parity,
             "stopbits": stopbits,
             "timeout_s": timeout_s,
             "terminator": terminator,

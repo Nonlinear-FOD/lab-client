@@ -1,4 +1,4 @@
-# Lab Overview
+# Overview
 
 Read-only endpoints to inspect connected devices and locks, and to enumerate VISA resources.
 
@@ -21,5 +21,6 @@ print(view.list_connected_instruments(probe_idn=True))
 ::: clients.lab_overview_client.LabOverviewClient
     options:
       show_source: false
+      show_root_heading: true
       members_order: source
 

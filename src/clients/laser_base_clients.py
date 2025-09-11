@@ -1,39 +1,50 @@
 from typing import Any, Protocol
 
-import numpy as np
-
 from .base_client import LabDeviceClient
-from .osa_clients import OSAClient
 
 
 class TunableLaserClientBase(LabDeviceClient):
-    """Base helpers for tunable laser clients (wavelength/power, enable/disable).
+    """Common helpers for tunable lasers (wavelength, enable/disable).
 
     Mixed into device-specific clients; not bound to a single server driver.
+
+    Notes:
+        - All laser clients expose `wavelength` and typically a `power` property
+          (via `PowerSettable`).
+        - `enable()` and `disable()` control output state where supported.
+        - `.close()` disables output then disconnects the server-side instance.
     """
+
     # Common helpers most tunable lasers expose
     @property
     def wavelength(self) -> float:
+        """Current output wavelength in nm (property)."""
         return self.get_property("wavelength")
 
     @wavelength.setter
     def wavelength(self, value: float | int) -> None:
+        """Set target wavelength in nm (property setter)."""
         self.set_property("wavelength", value)
 
     def enable(self) -> None:
+        """Enable laser output (device must support it)."""
         self.call("enable")
 
     def disable(self) -> None:
+        """Disable laser output."""
         self.call("disable")
 
     def close(self) -> None:
+        """Disable output and disconnect the server-side instance."""
         self.disable()
         self.disconnect()
 
     def write(self, command: str) -> None:
+        """Send a raw command to the underlying device (driver-specific)."""
         self.call("write", command=command)
 
     def query(self, command: str) -> str:
+        """Send a raw query and return the response string (driver-specific)."""
         return self.call("query", command=command)
 
 
@@ -46,13 +57,16 @@ class _HasProps(Protocol):
 
 
 class PowerSettable(_HasProps):
-    """Mixin that exposes a standard 'power' property on laser clients."""
+    """Mixin exposing a standard `power` property on laser clients. If the laser has this property, its power can be set."""
+
     @property
     def power(self) -> float:
+        """Current output power (units depend on device)."""
         return self.get_property("power")
 
     @power.setter
     def power(self, value: float | int) -> None:
+        """Set output power to `value` (device-specific units)."""
         self.set_property("power", value)
 
 
@@ -63,6 +77,7 @@ class OSAClientLike(Protocol):
 
 class OSATuningClientMixin(_HasProps):
     """Mixin providing OSA-assisted wavelength adjustment on lasers."""
+
     def adjust_wavelength(
         self,
         osa: OSAClientLike | str,
@@ -71,6 +86,15 @@ class OSATuningClientMixin(_HasProps):
         samples: int = 10001,
         tol_nm: float = 0.005,
     ) -> None:
+        """Adjust wavelength by maximizing OSA peak near current center.
+
+        Args:
+            osa: OSA client or device name registered on the server.
+            res: OSA resolution bandwidth in nm (e.g., 0.01).
+            sens: OSA sensitivity (e.g., `SMID`).
+            samples: Number of OSA samples to acquire per sweep.
+            tol_nm: Stop when absolute wavelength error < `tol_nm`.
+        """
         # self.call(...) comes from LabDeviceClient via your client base
         name = osa if isinstance(osa, str) else osa.device_name
         self.call(

@@ -30,7 +30,7 @@ osa.close()           # releases lock and drops server instance
 
 ## Notes
 
-- Arrays returned as numpy; JSON transport is converted automatically.
+- Arrays returned as numpy.
 - Use `.close()` or `.disconnect()` to ensure a fresh instance on next connect.
 - For troubleshooting, instantiate with `debug=True` to get detailed server errors.
 

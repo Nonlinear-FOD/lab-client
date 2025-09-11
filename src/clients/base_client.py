@@ -4,6 +4,40 @@ from typing import Any
 
 
 class LabDeviceClient:
+    """Base client for device endpoints exposed by the lab server. If None is passed to `__init__`, default values
+    defined in the `config*.json` files or defaults from the `server*/devices*/.py` will be used.
+
+    What it does:
+
+    - Stores the server `base_url` and `device_name` and builds request URLs.
+    - Adds `X-User` and `X-Debug` headers when configured (locks + rich errors).
+    - Normalizes HTTP/JSON errors to Python exceptions with readable messages.
+    - Provides helpers for property GET/SET, method calls, and disconnect.
+    - Converts JSON lists to numpy arrays where appropriate.
+
+    In practice, you will instantiate a device‑specific client (e.g.,
+    `OSAClient`, `AndoLaserClient`, etc.). Those call `_initialize_device()`
+    in their constructor to POST `/devices/{name}/connect` with init params.
+
+    Args:
+        base_url: Base HTTP URL of the server (e.g., `http://127.0.0.1:5000`).
+        device_name: Device key from the server config (e.g., `osa_1`).
+        user: Optional user name used for server‑side locking (`X-User`).
+        debug: When true, include `X-Debug: 1` to receive detailed server errors.
+
+    Notes:
+        - All concrete clients implement `.close()` that delegates to
+          `.disconnect()` to drop the server instance and release locks.
+        - `get_property()` returns JSON scalars or numpy arrays (for list values).
+        - `call()` returns the server `result` field, converted to numpy arrays
+          when the payload is a homogeneous list.
+        - Initialization: each device has a server-side config keyed by
+          `device_name` containing transport details (e.g., VISA resource,
+          COM port, serial number) and sensible defaults. Client constructors
+          only need `device_name` in the common case; any non-`None` keyword
+          arguments you pass will override the config for that session.
+    """
+
     PROPERTY_METHODS: tuple[str, ...] = ("GET", "POST")
 
     def __init__(
@@ -45,34 +79,6 @@ class LabDeviceClient:
             except Exception:
                 pass
             raise RuntimeError(f"HTTP {resp.status_code}: {resp.text}") from e
-
-    def list_instruments(self) -> dict[str, Any]:
-        url = f"{self.base_url}/devices"
-        try:
-            return self._json_or_raise(requests.get(url, headers=self._headers()))
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(
-                f"Could not retrieve instruments from {url}: {e}"
-            ) from e
-
-    def list_connected_instruments(
-        self, probe_idn: bool = False, timeout_ms: int = 300
-    ) -> dict[str, Any]:
-        """
-        Returns VISA resources discovered on the server.
-        If probe_idn=True, the server will try '*IDN?' on each resource
-        using the provided timeout.
-        """
-        url = f"{self.base_url}/system/resources"
-        params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}
-        try:
-            return self._json_or_raise(
-                requests.get(url, params=params, headers=self._headers())
-            )
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(
-                f"Could not retrieve connected instruments from {url}: {e}"
-            ) from e
 
     def _initialize_device(self, init_payload: dict[str, Any]) -> None:
         url = f"{self.device_url}/connect"
