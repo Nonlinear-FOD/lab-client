@@ -5,8 +5,12 @@ import requests
 
 
 class LabOverviewClient:
-    """
-    Read-only client for overview endpoints.
+    """Read-only client for overview and system endpoints. Can be used to see what devices are
+    connected and which are currently used.
+
+    Args:
+        base_url: Base HTTP URL of the server (e.g., `http://127.0.0.1:5000`).
+        user: Optional user name for lock-aware endpoints (passed as `X-User`).
     """
 
     def __init__(self, base_url: str, user: str | None = None):
@@ -21,20 +25,30 @@ class LabOverviewClient:
         return resp.json()
 
     def devices(self) -> dict[str, Any]:
+        """Return connection/lock status for all configured devices.
+
+        Returns:
+            Mapping of device name to `{"connected": bool, "connected_since": str|None, "used_by": str|None}`.
+        """
         url = f"{self.base_url}/overview/devices"
         return self._json_or_raise(requests.get(url, headers=self._headers()))
 
     def list_used_instruments(self) -> dict[str, Any]:
+        """Return current locks: which user holds which device (if any)."""
         url = f"{self.base_url}/overview/locks"
         return self._json_or_raise(requests.get(url, headers=self._headers()))
 
     def list_connected_instruments(
         self, probe_idn: bool = False, timeout_ms: int = 300
     ) -> dict[str, Any]:
-        """
-        Returns VISA resources discovered on the server.
-        If probe_idn=True, the server will try '*IDN?' on each resource
-        using the provided timeout.
+        """Enumerate VISA resources on the server host.
+
+        Args:
+            probe_idn: If true, the server queries `*IDN?` for each resource.
+            timeout_ms: Timeout in milliseconds for the probe.
+
+        Returns:
+            Dict with a `"visa"` key containing resource info and optional IDNs.
         """
         url = f"{self.base_url}/system/resources"
         params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}

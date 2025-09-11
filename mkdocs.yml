@@ -1,0 +1,28 @@
+site_name: Lab Client Docs
+theme:
+  name: material
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src"]
+          options:
+            docstring_style: google
+            separate_signature: true
+            show_signature_annotations: true
+            show_source: false
+            merge_init_into_class: true
+            allow_inspection: true
+            filters: []
+nav:
+  - Overview: index.md
+  - Devices:
+      - OSA: devices/osa.md
+      - Thorlabs PM100: devices/thorlabs_pm.md
+      - Thorlabs MPC320: devices/thorlabs_mpc320.md
+  - Services:
+      - Overview: services/overview.md
+      - Polarization Optimizer: services/polarization_optimizer.md
+  - API:
+      - Client Base + Overview: api/clients.md
