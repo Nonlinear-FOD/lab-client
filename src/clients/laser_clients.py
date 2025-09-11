@@ -17,8 +17,21 @@ from clients.osa_clients import OSAClient
 class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
     """Client for Ando tunable laser.
 
-    Server-side driver: devices.laser_control.AndoLaser
+    Server-side driver: `devices.laser_control.AndoLaser`.
+
+    Args:
+        base_url: Base HTTP URL of the server (e.g., `http://127.0.0.1:5000`).
+        device_name: Device key from server config (e.g., `ando_laser_1`).
+        target_wavelength: Initial wavelength (nm).
+        power: Initial output power (device units; see driver docs).
+        GPIB_address: Optional override for GPIB address.
+        GPIB_bus: Optional override for GPIB bus.
+        wl_interp: If true, use interpolation for wavelength moves where supported.
+        timeout_s: Transport timeout in seconds.
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
     """
+
     def __init__(
         self,
         base_url: str,
@@ -45,6 +58,7 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
 
     @property
     def linewidth(self):
+        """Laser linewidth (device-specific units)."""
         return self.get_property("linewidth")
 
     @linewidth.setter
@@ -55,8 +69,22 @@ class AndoLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixi
 class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientMixin):
     """Client for Agilent tunable laser.
 
-    Server-side driver: devices.laser_control.AgilentLaser
+    Server-side driver: `devices.laser_control.AgilentLaser`.
+
+    Args:
+        base_url: Base HTTP URL of the server (e.g., `http://127.0.0.1:5000`).
+        device_name: Device key from server config (e.g., `agilent_laser_1`).
+        target_wavelength: Initial wavelength (nm).
+        power: Initial output power (device units; see driver docs).
+        source: Source channel index for multi-source units (e.g., 1 or 2).
+        GPIB_address: Optional override for GPIB address.
+        GPIB_bus: Optional override for GPIB bus.
+        wl_interp: If true, use interpolation for wavelength moves where supported.
+        timeout_s: Transport timeout in seconds.
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
     """
+
     def __init__(
         self,
         base_url: str,
@@ -85,6 +113,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
 
     @property
     def source(self):
+        """Active source channel index (int)."""
         return self.get_property("source")
 
     @source.setter
@@ -93,6 +122,7 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
 
     @property
     def unit(self):
+        """Power unit string (device-dependent)."""
         return self.get_property("unit")
 
     @unit.setter
@@ -103,8 +133,22 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
 class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
     """Client for Ti:Sapphire laser.
 
-    Server-side driver: devices.tisa_control.TiSapphire
+    Server-side driver: `devices.tisa_control.TiSapphire`.
+
+    Args:
+        base_url: Base HTTP URL of the server.
+        device_name: Device key from server config (e.g., `tisa`).
+        com_port: Serial port index or number.
+        NSL: Device step parameter (left steps).
+        PSL: Device step parameter (right steps).
+        smc_path: Optional path to vendor executable.
+        calibration_path: Path to store/load wavelength calibration.
+        initial_wavelength: Seed wavelength for open-loop mode.
+        nm_to_pos_slope: Fixed slope for open-loop mode (pos/nm).
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
     """
+
     def __init__(
         self,
         base_url: str,
@@ -133,6 +177,14 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
 
     @property
     def wavelength(self) -> float:
+        """Current emission wavelength in nm.
+
+        Notes:
+            - If a calibration has been created via `calibrate`, the server
+              performs an absolute move using the position↔wavelength map.
+            - Without a calibration, the server uses open‑loop behavior seeded by
+              an initial wavelength and a fixed nm→position slope.
+        """
         return self.get_property("wavelength")
 
     @wavelength.setter
@@ -140,12 +192,15 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         self.set_property("wavelength", value)
 
     def delta_wl_nm(self, value: float) -> None:
+        """Open-loop relative wavelength step in nm (uses calibration or fixed slope)."""
         self.call("delta_wl_nm", delta_nm=value)
 
     def delta_wl_arb(self, value: float) -> None:
+        """Relative move in actuator units (arbitrary)."""
         self.call("delta_wl_arb", delta_pos=value)
 
     def get_pos(self) -> float:
+        """Return current actuator position."""
         return self.call("get_pos")
 
     def calibrate(
@@ -158,9 +213,26 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         padding: float | int = 2,
         res: float | int = 1,
     ) -> None:
+        """Create a wavelength calibration using an OSA and save it.
+
+        The server sweeps the OSA over a sliding window across
+        ``[cal_start, cal_end]`` while stepping the Ti:Sapphire in
+        ``cal_step`` nm increments. It records the actuator position and the
+        peak wavelength at each step, then saves a position↔wavelength map
+        used for subsequent absolute wavelength moves.
+
+        Args:
+            osa: OSA client used for peak detection.
+            cal_start: Start wavelength in nm.
+            cal_end: End wavelength in nm.
+            cal_step: Wavelength increment in nm (> 0 and < ``padding``).
+            interval: OSA window width in nm for local scans.
+            padding: Guard band in nm around the local scan window.
+            res: OSA resolution bandwidth in nm.
+        """
         self.call(
             "calibrate",
-            osa_device=osa.device_name,  # pass reference, not object
+            osa_device=osa.device_name,
             cal_start=cal_start,
             cal_end=cal_end,
             cal_step=cal_step,
@@ -178,6 +250,20 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
         osa_fine_res: float | int = 0.01,
         error_tolerance: float | int = 0.05,
     ) -> None:
+        """Iteratively tune to ``target_wl`` using OSA feedback.
+
+        The server repeatedly narrows in on the target wavelength by sweeping
+        the OSA, locating the spectral peak, and adjusting the actuator until
+        the absolute error is below ``error_tolerance``.
+
+        Args:
+            target_wl: Target wavelength in nm.
+            osa: OSA client used for feedback.
+            min_peak_val: Minimum acceptable peak (dBm) to consider a valid hit.
+            osa_rough_res: OSA RBW in nm for initial coarse search.
+            osa_fine_res: OSA RBW in nm for fine approach.
+            error_tolerance: Stop when absolute wavelength error < tolerance (nm).
+        """
         self.call(
             "set_wavelength_iterative_method",
             target_wl=target_wl,
@@ -195,8 +281,20 @@ class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
 class VerdiLaserClient(LabDeviceClient):
     """Client for Coherent Verdi laser.
 
-    Server-side driver: devices.verdi_laser.VerdiLaser
+    Server-side driver: `devices.verdi_laser.VerdiLaser`.
+
+    Args:
+        base_url: Base HTTP URL of the server.
+        device_name: Device key from server config (e.g., `verdi`).
+        com_port: Serial port index for RS-232.
+        baudrate: Serial baud rate.
+        bytesize: Serial byte size.
+        stopbits: Serial stop bits.
+        timeout_s: Serial timeout (seconds).
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
     """
+
     def __init__(
         self,
         base_url: str,
@@ -204,7 +302,6 @@ class VerdiLaserClient(LabDeviceClient):
         com_port: int | None = None,
         baudrate: int = 19200,
         bytesize: int = 8,
-        parity=serial.PARITY_NONE,
         stopbits: int = 1,
         timeout_s: int = 2,
         user: str | None = None,
@@ -214,7 +311,6 @@ class VerdiLaserClient(LabDeviceClient):
             "com_port": com_port,
             "baudrate": baudrate,
             "bytesize": bytesize,
-            "parity": parity,
             "stopbits": stopbits,
             "timeout_s": timeout_s,
         }
@@ -222,30 +318,39 @@ class VerdiLaserClient(LabDeviceClient):
         self._initialize_device(self.init_params)
 
     def port_pause(self) -> None:
+        """Pause serial port (driver-specific)."""
         self.call("port_pause")
 
     def port_clear(self) -> None:
+        """Clear serial port buffers (driver-specific)."""
         self.call("port_clear")
 
     def port_close(self) -> None:
+        """Close the laser’s serial port (driver-specific)."""
         self.call("port_close")
 
     def laser_home(self) -> None:
+        """Home the laser (driver-specific)."""
         self.call("laser_home")
 
     def in_waiting(self) -> None:
+        """Return/clear input waiting status (driver-specific)."""
         self.call("in_waiting")
 
     def laser_query(self) -> None:
+        """Send a low-level laser query (driver-specific)."""
         self.call("laser_query")
 
     def shutdown(self) -> None:
+        """Gracefully shut down the laser (driver-specific)."""
         self.call("shutdown")
 
     def standby_on(self) -> None:
+        """Enable standby mode."""
         self.call("standby_on")
 
     def active_on(self) -> None:
+        """Enable active (output) mode."""
         self.call("active_on")
 
     def close(self) -> None:
@@ -253,6 +358,7 @@ class VerdiLaserClient(LabDeviceClient):
 
     @property
     def shutter(self):
+        """Shutter state (property)."""
         return self.get_property("shutter")
 
     @shutter.setter
@@ -261,6 +367,7 @@ class VerdiLaserClient(LabDeviceClient):
 
     @property
     def power(self):
+        """Output power (property)."""
         return self.get_property("power")
 
     @power.setter

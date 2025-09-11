@@ -4,7 +4,14 @@ from .base_client import LabDeviceClient
 class BoxoptronicsEDFAClient(LabDeviceClient):
     """Client for Box Optronics EDFA amplifier.
 
-    Server-side driver: devices.boxoptronics_edfa.BoxoptronicsEDFA
+    Server-side driver: `devices.boxoptronics_edfa.BoxoptronicsEDFA`.
+
+    Args:
+        base_url: Base HTTP URL of the server.
+        device_name: Device key from server config (e.g., `boxoptronics_edfa`).
+        com_port: Serial port index/number for the EDFA controller.
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
     """
     def __init__(
         self,
@@ -23,10 +30,12 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
         self.disconnect()
 
     def read_status(self) -> dict:
+        """Return a dict snapshot of EDFA status (temperatures, alarms, etc.)."""
         return self.call("read_status")
 
     @property
     def target_power_dbm(self) -> float:
+        """Target output power in dBm."""
         return self.get_property("target_power_dbm")
 
     @target_power_dbm.setter
@@ -35,6 +44,7 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
 
     @property
     def mode(self) -> str:
+        """Operating mode string (device-defined)."""
         return self.get_property("mode")
 
     @mode.setter
@@ -43,6 +53,7 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
 
     @property
     def target_current_mA(self) -> int:
+        """Target pump current in mA (current control mode)."""
         return self.get_property("target_current_mA")
 
     @target_current_mA.setter
@@ -51,13 +62,16 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
 
     @property
     def current_limit_mA(self) -> int:
+        """Pump current limit in mA (read-only)."""
         return self.get_property("current_limit_mA")
 
     def get_temps(self) -> dict:
+        """Return internal temperature readings as a dict."""
         return self.call("get_temps")
 
     @property
     def soft_active(self) -> int:
+        """Software active flag (bool-like)."""
         return self.get_property("soft_active")
 
     @soft_active.setter
@@ -65,10 +79,13 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
         self.set_property("soft_active", value)
 
     def enable(self) -> None:
+        """Enable EDFA output (observes device safety interlocks)."""
         self.call("enable")
 
     def disable(self) -> None:
+        """Disable EDFA output."""
         self.call("disable")
 
     def status(self) -> bool:
+        """Return True if output is enabled and healthy."""
         return self.call("status")
