@@ -18,6 +18,9 @@ plugins:
 nav:
   - Overview: index.md
   - Devices:
+      - Zaber 1D: devices/zaber_1d.md
+      - Keithley 2700: devices/keithley_2700.md
+      - Tenma PSU: devices/tenma_psu.md
       - PicoScope 2000A: devices/picoscope2000a.md
       - OSA: devices/osa.md
       - Thorlabs PM100: devices/thorlabs_pm.md
