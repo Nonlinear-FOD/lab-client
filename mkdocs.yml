@@ -18,6 +18,7 @@ plugins:
 nav:
   - Overview: index.md
   - Devices:
+      - PicoScope 2000A: devices/picoscope2000a.md
       - OSA: devices/osa.md
       - Thorlabs PM100: devices/thorlabs_pm.md
       - Thorlabs MPC320: devices/thorlabs_mpc320.md
