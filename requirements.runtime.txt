@@ -95,7 +95,7 @@ mkdocs-autorefs==1.4.3
     #   mkdocstrings-python
 mkdocs-get-deps==0.2.0
     # via mkdocs
-mkdocs-material==9.6.19
+mkdocs-material==9.6.20
     # via lab-client (pyproject.toml)
 mkdocs-material-extensions==1.3.1
     # via mkdocs-material
@@ -148,8 +148,14 @@ pymdown-extensions==10.16.1
     # via
     #   mkdocs-material
     #   mkdocstrings
-pyparsing==3.2.3
+pyparsing==3.2.4
     # via matplotlib
+pyqt5==5.15.11
+    # via lab-client (pyproject.toml)
+pyqt5-qt5==5.15.17
+    # via pyqt5
+pyqt5-sip==12.17.0
+    # via pyqt5
 pyserial==3.5
     # via lab-client (pyproject.toml)
 python-dateutil==2.9.0.post0

@@ -65,9 +65,45 @@ What the setup script does
 - Dependencies: Installs pinned runtime deps from `requirements.runtime.txt` into the venv using `uv pip`.
 - Client linking: Runs `tools/link_clients.py` to add a `.pth` file into the venv’s site‑packages, so `from clients ...` imports work.
 - Import check: Verifies `from clients.osa_clients import OSAClient` with the venv’s Python.
+- Project updater: Writes `<your-experiment>/update_venv.py`, a helper that runs `git pull` in `lab-client/` and `uv pip sync` against your `.venv` so removed packages are also uninstalled.
 
 Where things are installed
 - uv binary: Typically `~/.local/bin/uv` on macOS/Linux; on Windows under `%USERPROFILE%\AppData\Local\Programs\uv\bin\uv.exe`.
 - Project venv: `<your-experiment>/.venv/` (managed by uv, Python 3.12).
 - Dependencies: Installed into the project venv.
 - Clients link: A `.pth` file is written into the venv’s site‑packages to point at `lab-client/src`.
+
+Update an existing setup
+- Quick path (recommended): from your project directory, run the updater that setup created:
+
+  ```bash
+  cd <your-experiment>
+  python update_venv.py
+  ```
+
+  This will:
+  - `git pull --ff-only` inside your `lab-client/` checkout
+  - `uv pip sync -r lab-client/requirements.runtime.txt --python .venv/bin/python`
+
+- Manual path (equivalent steps):
+
+  ```bash
+  # 1) Update the client repo
+  cd <path-to>/lab-client
+  git pull --ff-only
+
+  # 2) Sync your project venv
+  cd <your-experiment>
+  # macOS/Linux
+  uv pip sync -r <path-to>/lab-client/requirements.runtime.txt --python .venv/bin/python
+  # Windows
+  uv pip sync -r <path-to>\lab-client\requirements.runtime.txt --python .venv\Scripts\python.exe
+  ```
+
+Notes
+- Code changes under `lab-client/src/clients/` are picked up immediately thanks to the `.pth` link; restart your REPL if a module was already imported.
+- Re-running `setup_venv.py` in an existing project:
+  - Detects `.venv` and leaves it in place.
+  - Runs `uv pip install -r …` (adds/updates deps but does not remove stale ones).
+  - Re-links clients and (re)writes `update_venv.py`.
+  - If you want to also remove packages that are no longer needed, prefer `python update_venv.py` or `uv pip sync` directly.
