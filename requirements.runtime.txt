@@ -24,13 +24,13 @@ contourpy==1.3.3
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.16
+debugpy==1.8.17
     # via ipykernel
 decorator==5.2.1
     # via ipython
 executing==2.2.1
     # via stack-data
-fonttools==4.59.2
+fonttools==4.60.0
     # via matplotlib
 ghp-import==2.1.0
     # via mkdocs
@@ -99,7 +99,7 @@ mkdocs-material==9.6.20
     # via lab-client (pyproject.toml)
 mkdocs-material-extensions==1.3.1
     # via mkdocs-material
-mkdocstrings==0.30.0
+mkdocstrings==0.30.1
     # via
     #   lab-client (pyproject.toml)
     #   mkdocstrings-python
@@ -133,7 +133,7 @@ platformdirs==4.4.0
     #   mkdocs-get-deps
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.0.0
+psutil==7.1.0
     # via ipykernel
 ptyprocess==0.7.0
     # via pexpect
@@ -148,14 +148,8 @@ pymdown-extensions==10.16.1
     # via
     #   mkdocs-material
     #   mkdocstrings
-pyparsing==3.2.4
+pyparsing==3.2.5
     # via matplotlib
-pyqt5==5.15.11
-    # via lab-client (pyproject.toml)
-pyqt5-qt5==5.15.17
-    # via pyqt5
-pyqt5-sip==12.17.0
-    # via pyqt5
 pyserial==3.5
     # via lab-client (pyproject.toml)
 python-dateutil==2.9.0.post0
@@ -163,7 +157,7 @@ python-dateutil==2.9.0.post0
     #   ghp-import
     #   jupyter-client
     #   matplotlib
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via
     #   mkdocs
     #   mkdocs-get-deps
@@ -200,5 +194,5 @@ urllib3==2.5.0
     # via requests
 watchdog==6.0.0
     # via mkdocs
-wcwidth==0.2.13
+wcwidth==0.2.14
     # via prompt-toolkit

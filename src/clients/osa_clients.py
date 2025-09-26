@@ -42,6 +42,7 @@ class OSAClient(LabDeviceClient):
         GPIB_bus: int | None = None,
         zero_nm_sweeptime: int | None = None,
         timeout_s: float | None = None,
+        TLS: int | None = None,
         user: str | None = None,
         debug: bool = False,
     ):
@@ -55,6 +56,7 @@ class OSAClient(LabDeviceClient):
             "GPIB_address": GPIB_address,
             "GPIB_bus": GPIB_bus,
             "zero_nm_sweeptime": zero_nm_sweeptime,
+            "TLS": TLS,
             "timeout_s": timeout_s,
         }
         self.init_params = {k: v for k, v in init_params.items() if v is not None}

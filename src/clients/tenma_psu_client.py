@@ -18,7 +18,7 @@ class TenmaPSUClient(LabDeviceClient):
         self,
         base_url: str,
         device_name: str,
-        com_port: int | None,
+        com_port: int | None = None,
         channel: int | None = None,
         user: str | None = None,
         debug: bool = False,
