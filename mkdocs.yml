@@ -35,5 +35,7 @@ nav:
   - Services:
       - Overview: services/overview.md
       - Polarization Optimizer: services/polarization_optimizer.md
+  - Setups:
+      - LPG Measurement: setups/lpg.md
   - API:
       - Client Base + Overview: api/clients.md

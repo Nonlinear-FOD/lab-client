@@ -49,9 +49,9 @@ class TenmaPSUClient(LabDeviceClient):
         return float(self.get_property("voltage_set"))
 
     @voltage_set.setter
-    def voltage_set(self, volts: float) -> None:
+    def voltage_set(self, value: float) -> None:
         """Set voltage setpoint (V) of the active channel."""
-        self.set_property("voltage_set", float(volts))
+        self.set_property("voltage_set", float(value))
 
     @property
     def voltage(self) -> float:
@@ -64,9 +64,9 @@ class TenmaPSUClient(LabDeviceClient):
         return float(self.get_property("current_set"))
 
     @current_set.setter
-    def current_set(self, amps: float) -> None:
+    def current_set(self, value: float) -> None:
         """Set current limit setpoint (A) of the active channel."""
-        self.set_property("current_set", float(amps))
+        self.set_property("current_set", float(value))
 
     @property
     def current(self) -> float:
