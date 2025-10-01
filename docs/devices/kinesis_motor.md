@@ -11,8 +11,8 @@ from clients.kinesis_motor_client import KinesisMotorClient
 base = "http://127.0.0.1:5000"
 kc = KinesisMotorClient(base, "kinesis_motor_1", user="alice")
 kc.home()
-kc.move_absolute(2.0)
-kc.set_position(-0.25)
+kc.set_position(2.0)
+kc.move_relative(-0.25)
 print(f"Position: {kc.get_position():.3f} mm")
 kc.close()
 ```
