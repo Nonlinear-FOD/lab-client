@@ -4,6 +4,8 @@ High-level routines for optimizing polarization using an MPC320 and a fast ADC/P
 
 - Client: `clients.polarization_optimizer_client.PolarizationOptimizerClient`
 - Server driver: `devices.pol_opt_service.PolarizationOptimizer`
+- Note: unlike hardware clients, this service represents orchestration logic that
+  runs on the server and composes other devices.
 
 ## Quickstart
 
@@ -35,6 +37,10 @@ pol_opt.optimize_multiple_pol_cons(
 
 - Device arguments can be device names or client objects; the service extracts
   `device_name` when objects are passed.
+- `PolarizationOptimizerClient` represents a *logical* service hosted on the
+  server. It does not map to a single piece of hardware; instead it remotely
+  drives connected MPC/ADC devices using server-side control loops. That is why
+  it omits a `user` lock by default and has no direct hardware state.
 
 ## API Reference
 

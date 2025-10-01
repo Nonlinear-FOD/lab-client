@@ -93,41 +93,6 @@ class PolarizationOptimizerClient(LabDeviceClient):
             max_or_min=max_or_min,
         )
 
-    def move_and_monitor(
-        self,
-        mpc_device: str | _HasDeviceName,
-        pm_device: str | _HasDeviceName,
-        paddle_num: int,
-        start_pos: float,
-        end_pos: float,
-        interval_ms: int = 10,
-        timeout_s: float = 60.0,
-    ) -> dict:
-        """Move a paddle while continuously monitoring power.
-
-        Args:
-            mpc_device: MPC320 device name or client object.
-            pm_device: ADC/PM device name or client object.
-            paddle_num: Paddle index (1–3).
-            start_pos: Start position of scan (deg).
-            end_pos: End position of scan (deg).
-            interval_ms: Polling interval for monitor thread (ms).
-            timeout_s: Move timeout on the server (s).
-
-        Returns:
-            Dict with keys `positions` and `values` (lists of floats).
-        """
-        return self.call(
-            "move_and_monitor",
-            mpc_device=self._name(mpc_device),
-            pm_device=self._name(pm_device),
-            paddle_num=paddle_num,
-            start_pos=start_pos,
-            end_pos=end_pos,
-            interval_ms=interval_ms,
-            timeout_s=timeout_s,
-        )
-
     def optimize_multiple_pol_cons(
         self,
         pm_device: str | _HasDeviceName,

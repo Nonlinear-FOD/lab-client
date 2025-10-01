@@ -1,49 +1,27 @@
-# LPG Measurement Setup
+# LPG Fabrication Setup
 
 The LPG write/read workflow combines the OSA, Zaber stage, Tenma PSU, and
 Keithley 2700 clients into a single reusable coordinator. All public helpers
-live in `setups.lpg_measurement` so you can script or experiment from an
-interactive console without re-implementing the sequencing logic.
+live in `setups.lpg_fabrication`.
 
 ## Quick Start
 
 ```python
-from setups.lpg_measurement import LPGMeasurement, LPGRunSettings
+from pathlib import Path
+from setups.lpg_fabrication import LPGFab, LPGRunSettings
 
 base_url = "http://127.0.0.1:5000"
-settings = LPGRunSettings(
-    directory="~/lab_runs/lpg",
-    file_prefix="sample",
-    n_periods=20,
-    start_period=0,
-    period_um=450.0,
-    heat_time_s=5.0,
-    measure_delay_s=1.0,
-    sleep_before_scan_s=2.0,
-    dip_limit_db=10.0,
-    burn_factor=1.5,
-    headroom=None,
-    fixed_voltage_limit_v=10.0,
-    wire_power_w=6.2,
-    wire_res_ohm=0.1494,
-    osa_span_nm=(1450.0, 1650.0),
-    osa_resolution_nm=0.5,
-    osa_sensitivity="SMID",
-    osa_trace="A",
-    tension_g=3.5,
-    home_offset_um=100.0,
-    stage_units="um",
-    comment="",
-    psu_type="Tenma",
-    measure_reference=True,
-    reference_path=None,
-    plot_stack=True,
-    zaber_com_port=None,
-    psu_com_port=None,
-    psu_channel=2,
-)
+defaults_path = Path.home() / "Documents" / "lpg_defaults.json"
 
-lpg = LPGMeasurement(
+if not defaults_path.exists():
+    defaults_path.parent.mkdir(parents=True, exist_ok=True)
+    LPGRunSettings().to_json(defaults_path)
+
+settings = LPGRunSettings.from_json(defaults_path)
+settings.file_prefix = "sample_A1"
+settings.directory = r"C:\\data\\lpg_runs"
+
+lpg = LPGFab(
     base_url,
     osa_id="osa_1",
     zaber_id="zaber_1d",
@@ -58,24 +36,41 @@ result = lpg.run()
 wl = result.wavelengths
 spectra = result.spectra
 lpg.close()
+
+settings.to_json(defaults_path)
 ```
 
 All artefacts (spectra CSV, optional plot, settings JSON) are written beneath
 `settings.directory` using `settings.file_prefix`.
 
-## Run Settings Reference
+## Default Settings File
 
-A JSON template with the defaults above is tracked at
-`testing_client/config/lpg_defaults.json`. You can load or modify it via the
-helpers:
+The repository does not ship a baked-in defaults JSON. Create one once, keep it
+under version control alongside your experiment notes, and load it with
+`LPGRunSettings.from_json()` in scripts or notebooks. A minimal bootstrap looks
+like:
 
 ```python
-from setups.lpg_measurement import LPGRunSettings
-settings = LPGRunSettings.from_json("testing_client/config/lpg_defaults.json")
-settings.to_json("~/configs/lpg_custom.json")
+from pathlib import Path
+from setups.lpg_fabrication import LPGRunSettings
+
+defaults_path = Path.home() / "Documents" / "lpg_defaults.json"
+defaults_path.parent.mkdir(parents=True, exist_ok=True)
+
+settings = LPGRunSettings()
+settings.directory = r"C:\\data\\lpg_runs"
+settings.file_prefix = "sample_A1"
+settings.to_json(defaults_path)
 ```
 
-Field overview:
+Later runs can load the same file, tweak fields in-memory (e.g.
+`settings.n_periods = 30`), and call `settings.to_json(defaults_path)` to persist
+your new baseline.
+
+## Run Settings Reference
+
+The table below lists the values returned by `LPGRunSettings()` before any
+customisation:
 
 | Field | Default | Description |
 | --- | --- | --- |
@@ -109,27 +104,21 @@ Field overview:
 | `psu_com_port` | `None` | Override COM port for `TenmaPSUClient`. |
 | `psu_channel` | `2` | Active PSU channel to drive. |
 
-## Dependency Injection for Testing
-
-`LPGMeasurement` accepts optional client instances via the `osa`, `zaber`,
-`psu`, and `dmm` keyword arguments. Each must implement the minimal protocol
-(`span`, `sweep`, `move_relative`, etc.), which makes it easy to supply fakes or
-wrap existing simulator classes during offline testing. Omitting one of the
-arguments creates the standard HTTP client for you.
-
 ## Generated Artefacts
 
-During a run the coordinator:
+`settings.file_prefix` determines the stem used for all outputs. For example,
+with `settings.directory = r"C:\\data\\lpg_runs"` and
+`settings.file_prefix = "sample_A1"`, a run produces:
 
-- saves stacked spectra to `<prefix>_spectra.csv`
-- optionally captures a stack plot to `<prefix>_plot.png`
-- records the run configuration in `<prefix>_log.csv` (legacy format) and
-  `<prefix>_run.json`
+- `C:\data\lpg_runs\sample_A1_spectra.csv`
+- `C:\data\lpg_runs\sample_A1_plot.png` (only when `plot_stack=True`)
+- `C:\data\lpg_runs\sample_A1_log.csv`
+- `C:\data\lpg_runs\sample_A1_run.json`
 
 Disable live plotting by setting `plot_stack=False` in the run settings.
 ## API Reference
 
-::: setups.lpg_measurement.LPGMeasurement
+::: setups.lpg_fabrication.LPGFab
     options:
       show_source: false
       show_root_heading: true

@@ -1,4 +1,4 @@
-"""Long-period grating (LPG) measurement orchestration helpers.
+"""Long-period grating (LPG) fabrication orchestration helpers.
 
 This module factors the standalone ``testing_client/lpg_test.py`` script into a
 reusable API so interactive notebooks or higher-level tooling can import and
@@ -221,8 +221,8 @@ class LPGRunSettings:
 
 
 @dataclass
-class LPGMeasurementResult:
-    """Result container returned by :class:`LPGMeasurement.run`."""
+class LPGFabResult:
+    """Result container returned by :class:`LPGFab.run`."""
 
     spectra: FloatArray
     resistances: list[float]
@@ -239,11 +239,11 @@ class LPGMeasurementResult:
         return np.asarray(self.spectra[:, 0], dtype=float)
 
 
-class LPGMeasurementError(RuntimeError):
+class LPGFabError(RuntimeError):
     """Raised when an unrecoverable LPG sequencing error occurs."""
 
 
-class LPGMeasurement:
+class LPGFab:
     """High-level coordinator for LPG write/read workflows."""
 
     def __init__(
@@ -322,7 +322,7 @@ class LPGMeasurement:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def run(self) -> LPGMeasurementResult:
+    def run(self) -> LPGFabResult:
         """Execute the configured LPG sequence and return captured data."""
         settings = self.settings
         settings.ensure_out_dir()
@@ -339,7 +339,7 @@ class LPGMeasurement:
         finally:
             self._safe_psu_off()
         self.logger.info(f"Finished after {periods_written} periods.")
-        return LPGMeasurementResult(
+        return LPGFabResult(
             spectra=spec,
             resistances=resistances,
             reference=reference,
@@ -366,7 +366,7 @@ class LPGMeasurement:
     # Internal helpers
     # ------------------------------------------------------------------
     def _build_logger(self) -> logging.Logger:
-        """Create or reuse the logger used for this measurement run."""
+        """Create or reuse the logger used for this Fab run."""
         out_dir = self.settings.ensure_out_dir()
         logger_name = f"lpg.{self.settings.file_prefix}"
         logger = logging.getLogger(logger_name)
@@ -427,7 +427,7 @@ class LPGMeasurement:
                 f"Reference file not found at {ref_path}. Set ``measure_reference=True`` "
                 "to capture a fresh spectrum."
             )
-            raise LPGMeasurementError(msg) from exc
+            raise LPGFabError(msg) from exc
         wl = np.asarray(ref[:, 0], dtype=float)
         pw = np.asarray(ref[:, 1], dtype=float)
         self.logger.info(f"Loaded reference from {ref_path}")
@@ -442,7 +442,7 @@ class LPGMeasurement:
         settings = self.settings
         current_a = settings.target_current_a
         if current_a <= 0:
-            raise LPGMeasurementError(
+            raise LPGFabError(
                 "Invalid target current derived from wire_power_w and wire_res_ohm."
             )
 
@@ -480,9 +480,7 @@ class LPGMeasurement:
             time.sleep(settings.sleep_before_scan_s)
             wl, dp = self._sweep_delta(reference)
             if spec.shape[0] != wl.shape[0]:
-                raise LPGMeasurementError(
-                    "Wavelength grid changed; alignment required."
-                )
+                raise LPGFabError("Wavelength grid changed; alignment required.")
             spec = np.column_stack([spec, dp])
             periods_written += 1
 
@@ -516,7 +514,7 @@ class LPGMeasurement:
             r0 = self._heat_and_measure(current_a)
             resistances.append(r0)
             if self._burned(r0):
-                raise LPGMeasurementError(
+                raise LPGFabError(
                     f"Measured resistance {r0:.3f} Ω exceeds burn threshold "
                     f"{self._burn_threshold():.3f} Ω"
                 )
@@ -546,7 +544,7 @@ class LPGMeasurement:
         r0 = self._heat_and_measure(current_a)
         resistances.append(r0)
         if self._burned(r0):
-            raise LPGMeasurementError(
+            raise LPGFabError(
                 f"Measured resistance {r0:.3f} Ω exceeds burn threshold "
                 f"{self._burn_threshold():.3f} Ω"
             )
@@ -576,7 +574,7 @@ class LPGMeasurement:
         wl, pw = self._sweep_and_check_tls()
         ref_wl, ref_pw = reference
         if wl.shape != ref_wl.shape:
-            raise LPGMeasurementError(
+            raise LPGFabError(
                 "Reference/sweep wavelength grids differ; alignment required."
             )
         delta = pw - ref_pw
@@ -698,9 +696,7 @@ class LPGMeasurement:
             with path.open("w", encoding="utf-8") as fh:
                 json.dump(self.settings.to_dict(), fh, indent=2)
         except Exception:
-            self.logger.debug(
-                f"Could not write settings JSON to {path}", exc_info=True
-            )
+            self.logger.debug(f"Could not write settings JSON to {path}", exc_info=True)
 
     def _load_previous_run(self) -> FloatArray | None:
         """Return the saved spectra matrix if present on disk."""
