@@ -18,6 +18,7 @@ class KinesisMotorClient(LabDeviceClient):
         serial: int | str | None = None,
         index: int | None = None,
         device_type: str | None = None,
+        timeout_s: float | None = None,
         kinesis_path: str | None = None,
         polling_interval_ms: int | None = None,
         stage_name: str | None = None,
@@ -30,6 +31,7 @@ class KinesisMotorClient(LabDeviceClient):
         init_params = {
             "serial": serial,
             "index": index,
+            "timeout_s": timeout_s,
             "device_type": device_type,
             "kinesis_path": kinesis_path,
             "polling_interval_ms": polling_interval_ms,
@@ -56,17 +58,31 @@ class KinesisMotorClient(LabDeviceClient):
         """Stop motion immediately."""
         self.call("stop")
 
-    def set_position(self, position: float, timeout_s: float = 60.0) -> None:
+    @property
+    def position(self) -> float:
+        """Return the current stage position in millimetres."""
+        return float(self.get_property("position"))
+
+    @position.setter
+    def position(self, pos: float) -> None:
         """Move to an absolute position in millimetres."""
-        self.call(
-            "set_position",
-            position=float(position),
-            timeout_s=float(timeout_s),
+        self.set_property(
+            "position",
+            pos,
         )
 
-    def get_position(self) -> float:
-        """Return the current stage position in millimetres."""
-        return float(self.call("get_position"))
+    @property
+    def timeout_s(self) -> float:
+        """Return the current stage timeout_s in millimetres."""
+        return float(self.get_property("timeout_s"))
+
+    @timeout_s.setter
+    def timeout_s(self, ts: float) -> None:
+        """Sets the timeout in seconds for multiple commands."""
+        self.set_property(
+            "timeout_s",
+            ts,
+        )
 
     def is_connected(self) -> bool:
         """Return ``True`` when the device is connected on the server."""
