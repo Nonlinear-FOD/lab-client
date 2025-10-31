@@ -11,7 +11,8 @@ High-level client for PicoScope 2000A series oscilloscopes with built‑in AWG.
 from clients.picoscope2000a_client import PicoScope2000AClient
 
 base = "http://127.0.0.1:5000"
-pico = PicoScope2000AClient(base, "picoscope2000a", user="alice", debug=True)
+user = "alice"
+pico = PicoScope2000AClient(base, "picoscope2000a", user=user, debug=True)
 
 # Option 1 — Drive AWG with duty‑cycle square wave (10% duty at 100 kHz)
 pico.awg_square_duty(frequency=100_000.0, duty_cycle=0.10, pk_to_pk_uv=2_000_000, offset_uv=0)

@@ -9,7 +9,8 @@
 from clients.thorlabs_pm_client import ThorlabsPMClient
 
 base = "http://127.0.0.1:5000"
-pm = ThorlabsPMClient(base, "thorlabspm_1", user="alice")
+user = "alice"
+pm = ThorlabsPMClient(base, "thorlabspm_1", user=user)
 pm.wavelength = 1550.0
 pm.scale = "log"   # dBm
 print(pm.read())

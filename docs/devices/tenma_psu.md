@@ -11,7 +11,8 @@ High-level client for Tenma dual-channel DC power supplies (e.g., 72-2645).
 from clients.tenma_psu_client import TenmaPSUClient
 
 base = "http://127.0.0.1:5000"
-psu = TenmaPSUClient(base, "tenma_psu", com_port="/dev/ttyUSB0", user="alice", debug=True)
+user = "alice"
+psu = TenmaPSUClient(base, "tenma_psu", com_port="/dev/ttyUSB0", user=user, debug=True)
 
 # Select channel and set setpoints
 psu.channel = 1

@@ -10,7 +10,8 @@ Read-only endpoints to inspect connected devices and locks, and to enumerate VIS
 from clients.lab_overview_client import LabOverviewClient
 
 base = "http://127.0.0.1:5000"
-view = LabOverviewClient(base, user="alice")
+user = "alice"
+view = LabOverviewClient(base, user=user)
 print(view.devices())            # connection + lock summary
 print(view.list_used_instruments())
 print(view.list_connected_instruments(probe_idn=True))

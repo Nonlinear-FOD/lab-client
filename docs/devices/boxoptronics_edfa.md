@@ -9,7 +9,8 @@
 from clients.boxoptronics_edfa_client import BoxoptronicsEDFAClient
 
 base = "http://127.0.0.1:5000"
-edfa = BoxoptronicsEDFAClient(base, "boxoptronics_edfa", com_port=3, user="alice")
+user = "alice"
+edfa = BoxoptronicsEDFAClient(base, "boxoptronics_edfa", com_port=3, user=user)
 print(edfa.read_status())
 edfa.enable()
 edfa.target_power_dbm = 10.0

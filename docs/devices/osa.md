@@ -11,7 +11,8 @@ The OSA client provides high-level control for sweeping and reading spectral dat
 from clients.osa_clients import OSAClient
 
 base = "http://127.0.0.1:5000"  # sim server
-osa = OSAClient(base, "osa_1", span=(1549, 1551), resolution=0.05, user="alice")
+user = "alice"
+osa = OSAClient(base, "osa_1", span=(1549, 1551), resolution=0.05, user=user)
 osa.sweeptype = "SGL"
 osa.sweep()
 wl = osa.wavelengths  # numpy array

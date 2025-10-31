@@ -9,7 +9,8 @@
 from clients.laser_clients import AndoLaserClient
 
 base = "http://127.0.0.1:5000"
-laser = AndoLaserClient(base, "ando_laser_1", target_wavelength=1550.0, power=0.0, user="alice")
+user = "alice"
+laser = AndoLaserClient(base, "ando_laser_1", target_wavelength=1550.0, power=0.0, user=user)
 laser.wavelength = 1550.5
 laser.enable()
 laser.power = 1.0

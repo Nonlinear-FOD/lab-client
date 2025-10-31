@@ -11,7 +11,8 @@ Minimal client for a single-axis Zaber Motion stage (via `zaber_motion`).
 from clients.zaber_1d_client import Zaber1DMotorClient
 
 base = "http://127.0.0.1:5000"
-motor = Zaber1DMotorClient(base, "zaber_1d", com_port=3, units="mm", user="alice", debug=True)
+user = "alice"
+motor = Zaber1DMotorClient(base, "zaber_1d", com_port=3, units="mm", user=user, debug=True)
 
 motor.home()              # home if needed
 motor.move_relative(5.0)  # move +5 mm

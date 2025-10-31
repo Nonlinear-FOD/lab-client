@@ -9,7 +9,8 @@
 from clients.laser_clients import AgilentLaserClient
 
 base = "http://127.0.0.1:5000"
-laser = AgilentLaserClient(base, "agilent_laser_1", target_wavelength=1550.0, power=0.0, source=1, user="alice")
+user = "alice"
+laser = AgilentLaserClient(base, "agilent_laser_1", target_wavelength=1550.0, power=0.0, source=1, user=user)
 laser.wavelength = 1549.8
 laser.enable()
 laser.power = 0.5

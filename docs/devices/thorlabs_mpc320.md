@@ -9,7 +9,8 @@
 from clients.thorlabs_mpc320_client import ThorlabsMPC320Client
 
 base = "http://127.0.0.1:5000"
-mpc = ThorlabsMPC320Client(base, "mpc320_1", user="alice")
+user = "alice"
+mpc = ThorlabsMPC320Client(base, "mpc320_1", user=user)
 mpc.velocity = 60
 pos = mpc.get_position(1)
 mpc.set_position(1, pos + 5.0)

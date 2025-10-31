@@ -9,7 +9,8 @@
 from clients.laser_clients import TiSapphireClient
 
 base = "http://127.0.0.1:5000"
-tisa = TiSapphireClient(base, "tisa", com_port=5, user="alice")
+user = "alice"
+tisa = TiSapphireClient(base, "tisa", com_port=5, user=user)
 tisa.wavelength = 800.0
 tisa.close()
 ```

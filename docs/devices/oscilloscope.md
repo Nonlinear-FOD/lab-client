@@ -11,12 +11,13 @@ High-level client for the generic Tektronix-style oscilloscope driver.
 from clients.tektronix_oscilloscope_client import TektronixOscilloscopeClient
 
 base_url = "http://127.0.0.1:5000"  # lab-server URL
-scope = TektronixOscilloscopeClient(
+user = "alice"
+scope = OscilloscopeClient(
     base_url,
     "oscilloscope_1",
     host="192.168.1.50",          # or connection_resource / gpib_address
     channel=1,
-    user="alice",
+    user=user,
     debug=True,
 )
 

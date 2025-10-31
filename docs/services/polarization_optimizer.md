@@ -15,9 +15,10 @@ from clients.thorlabs_mpc320_client import ThorlabsMPC320Client
 from clients.arduino_adc_client import ArduinoADCClient
 
 base = "http://127.0.0.1:5000"
+user = "alice"
 pol_opt = PolarizationOptimizerClient(base, "pol_opt")
-mpc = ThorlabsMPC320Client(base, "mpc320_1", user="alice")
-adc = ArduinoADCClient(base, "arduino_adc", user="alice")
+mpc = ThorlabsMPC320Client(base, "mpc320_1", user=user)
+adc = ArduinoADCClient(base, "arduino_adc", user=user)
 
 # Continuous move + monitor (accepts device names or client objects)
 pol_opt.move_and_monitor(mpc_device=mpc, pm_device=adc, paddle_num=1, start_pos=0, end_pos=165.9)

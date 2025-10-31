@@ -9,7 +9,8 @@
 from clients.laser_clients import VerdiLaserClient
 
 base = "http://127.0.0.1:5000"
-verdi = VerdiLaserClient(base, "verdi", com_port=12, user="alice")
+user = "alice"
+verdi = VerdiLaserClient(base, "verdi", com_port=12, user=user)
 verdi.standby_on()
 print(verdi.power)
 verdi.active_on()

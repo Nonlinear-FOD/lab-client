@@ -11,7 +11,8 @@ Minimal client for the Keithley 2700 Multimeter/Switch System.
 from clients.keithley2700_client import Keithley2700Client
 
 base = "http://127.0.0.1:5000"
-km = Keithley2700Client(base, "keithley_2700", GPIB_bus=0, GPIB_address=16, user="alice", debug=True)
+user = "alice"
+km = Keithley2700Client(base, "keithley_2700", GPIB_bus=0, GPIB_address=16, user=user, debug=True)
 
 # Assumes function/range/resolution are set on the instrument front panel
 v = km.read_voltage()
