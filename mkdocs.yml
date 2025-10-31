@@ -22,6 +22,7 @@ nav:
       - Keithley 2700: devices/keithley_2700.md
       - Tenma PSU: devices/tenma_psu.md
       - PicoScope 2000A: devices/picoscope2000a.md
+      - Tektronix Oscilloscope: devices/oscilloscope.md
       - OSA: devices/osa.md
       - Thorlabs PM100: devices/thorlabs_pm.md
       - Thorlabs MPC320: devices/thorlabs_mpc320.md
