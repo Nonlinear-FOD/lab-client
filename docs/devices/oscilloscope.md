@@ -12,7 +12,7 @@ from clients.tektronix_oscilloscope_client import TektronixOscilloscopeClient
 
 base_url = "http://127.0.0.1:5000"  # lab-server URL
 user = "alice"
-scope = OscilloscopeClient(
+scope = TektronixOscilloscopeClient(
     base_url,
     "oscilloscope_1",
     host="192.168.1.50",          # or connection_resource / gpib_address
