@@ -2,7 +2,7 @@
 
 High-level client for the generic Tektronix-style oscilloscope driver.
 
-- Client: `clients.oscilloscope_client.OscilloscopeClient`
+- Client: `clients.tektronix_oscilloscope_client.TektronixOscilloscopeClient`
 - Server driver: `devices.tektronix_oscilloscope.TektronixOscilloscope`
 
 ## Quickstart
@@ -52,7 +52,7 @@ scope.close()
 
 ## API Reference
 
-::: clients.oscilloscope_client.OscilloscopeClient
+::: clients.tektronix_oscilloscope_client.TektronixOscilloscopeClient
     options:
       show_source: false
       show_root_heading: true
