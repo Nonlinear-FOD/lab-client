@@ -565,15 +565,15 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ipykernel", specifier = ">=6.30.1" },
-    { name = "ipython", specifier = ">=9.5.0" },
-    { name = "matplotlib", specifier = ">=3.10.6" },
-    { name = "mkdocs-material", specifier = ">=9.6.19" },
-    { name = "mkdocstrings", specifier = ">=0.30.0" },
-    { name = "mkdocstrings-python", specifier = ">=1.18.2" },
-    { name = "numpy", specifier = ">=2.3.2" },
-    { name = "pyserial", specifier = ">=3.5" },
-    { name = "requests", specifier = ">=2.32.5" },
+    { name = "ipykernel", specifier = "==6.30.1" },
+    { name = "ipython", specifier = "==9.5.0" },
+    { name = "matplotlib", specifier = "==3.10.6" },
+    { name = "mkdocs-material", specifier = "==9.6.19" },
+    { name = "mkdocstrings", specifier = "==0.30.0" },
+    { name = "mkdocstrings-python", specifier = "==1.18.2" },
+    { name = "numpy", specifier = "==2.3.2" },
+    { name = "pyserial", specifier = "==3.5" },
+    { name = "requests", specifier = "==2.32.5" },
 ]
 
 [[package]]

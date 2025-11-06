@@ -1,4 +1,4 @@
-# Ando OSA (Optical Spectrum Analyzer)
+# Ando OSA
 
 The OSA client provides high-level control for sweeping and reading spectral data.
 
