@@ -21,10 +21,16 @@ class ThorlabsCameraClient(LabDeviceClient):
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(kwargs)
 
-    def grab_frame(self) -> np.ndarray:
-        """Capture a single frame and return it as a NumPy array."""
-        frame = self.call("grab_frame")
-        return np.asarray(frame)
+    def grab_frame(self, averages: int = 1, dtype: np.dtype | None = None) -> np.ndarray:
+        """Capture frame(s) with optional on-device averaging."""
+        payload: Dict[str, Any] = {}
+        if averages and int(averages) > 1:
+            payload["averages"] = int(averages)
+        frame = self.call("grab_frame", **payload)
+        array = np.asarray(frame)
+        if dtype is not None:
+            array = array.astype(dtype, copy=False)
+        return array
 
     @property
     def shape(self) -> Tuple[int, int]:

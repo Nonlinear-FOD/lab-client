@@ -12,6 +12,8 @@ dependencies = [
     "mkdocstrings-python==1.18.2",
     "mkdocstrings==0.30.0",
     "numpy==2.3.2",
+    "pyqt5>=5.15.11",
     "pyserial==3.5",
     "requests==2.32.5",
+    "scipy>=1.16.3",
 ]

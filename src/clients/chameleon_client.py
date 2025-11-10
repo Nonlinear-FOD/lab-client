@@ -62,9 +62,14 @@ class ChameleonClient(LabDeviceClient):
     def stop_capture(self) -> Dict[str, Any]:
         return dict(self.call("stop_capture"))
 
-    def grab_frame(self) -> np.ndarray:
-        frame = self.call("grab_frame")
+    def grab_frame(self, averages: int = 1, dtype: np.dtype | None = None) -> np.ndarray:
+        payload: Dict[str, Any] = {}
+        if averages and int(averages) > 1:
+            payload["averages"] = int(averages)
+        frame = self.call("grab_frame", **payload)
         array = np.asarray(frame)
+        if dtype is not None:
+            array = array.astype(dtype, copy=False)
         return array
 
     def disconnect_camera(self) -> Dict[str, Any]:
