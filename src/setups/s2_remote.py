@@ -11,10 +11,12 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Protocol
+from typing import Any, Iterable, Protocol
 
 import numpy as np
+import numpy.typing as npt
 
+from clients.camera_models import ChameleonCameraSettings
 from clients.chameleon_client import ChameleonClient
 from clients.laser_clients import (
     AgilentLaserClient,
@@ -31,12 +33,16 @@ class DeviceEndpoint:
     base_url: str
     device_name: str
     user: str | None = None
-    init_kwargs: Dict[str, Any] = field(default_factory=dict)
+    init_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 class CameraProtocol(Protocol):
-    def grab_frame(self, averages: int = 1, **kwargs: Any) -> np.ndarray: ...
+    """Minimal surface expected from camera clients used in S2RemoteSetup."""
+
+    def grab_frame(self, *args: Any, **kwargs: Any) -> np.ndarray: ...
     def close(self) -> None: ...
+    @property
+    def max_signal(self) -> int | float: ...
 
 
 class LaserProtocol(Protocol):
@@ -86,6 +92,14 @@ class S2ImageWindow:
         y1 = max(y0 + 1, min(self.y_end, height))
         return slice(y0, y1), slice(x0, x1)
 
+    def to_payload(self) -> dict[str, int]:
+        return {
+            "x_start": int(self.x_start),
+            "x_end": int(self.x_end),
+            "y_start": int(self.y_start),
+            "y_end": int(self.y_end),
+        }
+
 
 @dataclass
 class S2ProcessingConfig:
@@ -95,10 +109,10 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"  # or "scintacor"
-    dtype: np.dtype | str | None = np.float32
+    dtype: npt.DTypeLike | str | None = np.floating
     server_binning: bool = False
 
-    def normalized_dtype(self) -> np.dtype | None:
+    def normalized_dtype(self) -> npt.DTypeLike | None:
         if self.dtype is None:
             return None
         return np.dtype(self.dtype)
@@ -110,8 +124,8 @@ class S2ScanResult:
 
     wavelengths_nm: np.ndarray
     cube: np.ndarray  # shape: (steps, rows, cols)
-    metadata: Dict[str, Any]
-    raw_frames: List[np.ndarray] | None = None
+    metadata: dict[str, Any]
+    raw_frames: list[np.ndarray] | None = None
 
     def save_npz(self, path: str | Path) -> Path:
         out_path = Path(path)
@@ -119,7 +133,7 @@ class S2ScanResult:
             out_path,
             wavelengths=self.wavelengths_nm,
             cube=self.cube,
-            metadata=self.metadata,
+            metadata=np.array(self.metadata, dtype=object),
         )
         return out_path
 
@@ -146,6 +160,7 @@ class S2RemoteSetup:
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
+    _camera_max_signal: float | None = field(init=False, default=None)
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
@@ -153,6 +168,7 @@ class S2RemoteSetup:
         self._cam_client = self._connect_camera(self.camera_kind)
         self._laser_client = self._connect_laser(self.laser_kind)
         self._enable_laser_output()
+        self._camera_max_signal = self._read_camera_max_signal()
 
     def disconnect(self) -> None:
         """Close all live clients."""
@@ -162,17 +178,25 @@ class S2RemoteSetup:
                     client.close()
                 except Exception:
                     pass
+        self._camera_max_signal = None
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
         if kind == "chameleon":
+            cam_kwargs = dict(self.camera.init_kwargs)
+            settings = cam_kwargs.pop("settings", None)
+            settings_obj: ChameleonCameraSettings | None = None
+            if isinstance(settings, ChameleonCameraSettings):
+                settings_obj = settings
+            elif isinstance(settings, dict):
+                settings_obj = ChameleonCameraSettings(**settings)
             cam = ChameleonClient(
                 self.camera.base_url,
                 self.camera.device_name,
                 user=self.camera.user,
-                **self.camera.init_kwargs,
+                settings=settings_obj,
+                **cam_kwargs,
             )
-            cam.connect_camera()
             cam.start_capture()
             return cam
         if kind == "thorlabs":
@@ -234,14 +258,15 @@ class S2RemoteSetup:
         wavelength_nm: float,
         averages: int = 1,
         settle_s: float = 0.0,
-        frame_kwargs: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        frame_kwargs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Move laser, optionally wait, capture averaged frame, and return payload."""
         self._set_laser_wavelength(wavelength_nm)
         if settle_s > 0:
             time.sleep(settle_s)
         kwargs = frame_kwargs or {}
         frame = self.grab_frame(averages=averages, **kwargs)
+        self._check_saturation(frame, context=f"{wavelength_nm:.3f} nm")
         return {
             "wavelength_nm": wavelength_nm,
             "frame": frame,
@@ -251,10 +276,10 @@ class S2RemoteSetup:
         self,
         config: S2ScanConfig,
         *,
-        frame_kwargs: Dict[str, Any] | None = None,
-    ) -> List[Dict[str, Any]]:
+        frame_kwargs: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Execute an S2 sweep over the configured wavelength span."""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for wl in config.wavelengths():
             result = self.run_single_step(
                 wl,
@@ -268,17 +293,12 @@ class S2RemoteSetup:
     def _camera_frame_kwargs(
         self,
         processing: S2ProcessingConfig | None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if processing is None or not processing.server_binning:
             return {}
-        roi = {
-            "x_start": int(processing.window.x_start),
-            "x_end": int(processing.window.x_end),
-            "y_start": int(processing.window.y_start),
-            "y_end": int(processing.window.y_end),
-        }
+        roi = processing.window.to_payload()
         output = max(1, int(processing.output_pixels))
-        return {"roi": roi, "output_pixels": output}
+        return {"window": roi, "output_pixels": output}
 
     # ------------------------------------------------------------------ higher-level workflow
     def capture_background(
@@ -286,14 +306,16 @@ class S2RemoteSetup:
         *,
         averages: int,
         frames: int,
-        frame_kwargs: Dict[str, Any] | None = None,
+        frame_kwargs: dict[str, Any] | None = None,
     ) -> np.ndarray:
         """Average several frames to form a background image."""
         samples = max(1, int(frames))
-        captures: List[np.ndarray] = []
+        captures: list[np.ndarray] = []
         kwargs = frame_kwargs or {}
         for _ in range(samples):
-            captures.append(self.grab_frame(averages=averages, **kwargs))
+            frame = self.grab_frame(averages=averages, **kwargs)
+            self._check_saturation(frame, context="background")
+            captures.append(frame)
         if len(captures) == 1:
             return captures[0]
         return np.mean(captures, axis=0)
@@ -317,8 +339,8 @@ class S2RemoteSetup:
             frames=processing.background_frames,
             frame_kwargs=frame_kwargs,
         )
-        processed_frames: List[np.ndarray] = []
-        raw_frames: List[np.ndarray] = []
+        processed_frames: list[np.ndarray] = []
+        raw_frames: list[np.ndarray] = []
         for wavelength in wavelengths:
             step = self.run_single_step(
                 wavelength,
@@ -326,7 +348,7 @@ class S2RemoteSetup:
                 settle_s=scan.settle_s,
                 frame_kwargs=frame_kwargs,
             )
-            raw = np.asarray(step["frame"])
+            raw = np.asarray(step["frame"], dtype=float)
             raw_frames.append(raw)
             processed_frames.append(
                 self._process_frame(raw, background, processing),
@@ -368,6 +390,26 @@ class S2RemoteSetup:
         if dtype is not None:
             return region.astype(dtype, copy=False)
         return region
+
+    def _read_camera_max_signal(self) -> float | None:
+        client = self._cam_client
+        if client is None:
+            return None
+        value = getattr(client, "max_signal", None)
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _check_saturation(self, frame: np.ndarray, context: str) -> None:
+        if self._camera_max_signal is None:
+            return
+        max_val = float(np.nanmax(frame))
+        if max_val >= 0.98 * self._camera_max_signal:
+            print(
+                f"[S2] Warning: frame near saturation ({max_val:.1f} / "
+                f"{self._camera_max_signal:.1f}) during {context}",
+            )
 
     @staticmethod
     def _apply_transform(frame: np.ndarray, transform: str) -> np.ndarray:

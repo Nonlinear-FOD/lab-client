@@ -5,6 +5,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 
 from clients.base_client import LabDeviceClient
+from clients.camera_models import CameraWindow
 
 
 class ThorlabsCameraClient(LabDeviceClient):
@@ -25,15 +26,18 @@ class ThorlabsCameraClient(LabDeviceClient):
         self,
         averages: int = 1,
         dtype: np.dtype | None = None,
-        roi: Dict[str, int] | None = None,
+        window: CameraWindow | Dict[str, int] | None = None,
         output_pixels: int | None = None,
     ) -> np.ndarray:
         """Capture frame(s) with optional on-device averaging/cropping/binning."""
         payload: Dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
-        if roi:
-            payload["roi"] = {k: int(v) for k, v in roi.items()}
+        if window:
+            if isinstance(window, CameraWindow):
+                payload["window"] = window.to_payload()
+            else:
+                payload["window"] = {k: int(v) for k, v in window.items()}
         if output_pixels is not None:
             payload["output_pixels"] = int(output_pixels)
         frame = self.call("grab_frame", **payload)
