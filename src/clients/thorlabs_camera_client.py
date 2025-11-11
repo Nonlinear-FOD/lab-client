@@ -5,6 +5,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 
 from clients.base_client import LabDeviceClient
+from clients.camera_models import CameraWindow
 
 
 class ThorlabsCameraClient(LabDeviceClient):
@@ -21,10 +22,29 @@ class ThorlabsCameraClient(LabDeviceClient):
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(kwargs)
 
-    def grab_frame(self) -> np.ndarray:
-        """Capture a single frame and return it as a NumPy array."""
-        frame = self.call("grab_frame")
-        return np.asarray(frame)
+    def grab_frame(
+        self,
+        averages: int = 1,
+        dtype: np.dtype | None = None,
+        window: CameraWindow | Dict[str, int] | None = None,
+        output_pixels: int | None = None,
+    ) -> np.ndarray:
+        """Capture frame(s) with optional on-device averaging/cropping/binning."""
+        payload: Dict[str, Any] = {}
+        if averages and int(averages) > 1:
+            payload["averages"] = int(averages)
+        if window:
+            if isinstance(window, CameraWindow):
+                payload["window"] = window.to_payload()
+            else:
+                payload["window"] = {k: int(v) for k, v in window.items()}
+        if output_pixels is not None:
+            payload["output_pixels"] = int(output_pixels)
+        frame = self.call("grab_frame", **payload)
+        array = np.asarray(frame)
+        if dtype is not None:
+            array = array.astype(dtype, copy=False)
+        return array
 
     @property
     def shape(self) -> Tuple[int, int]:
