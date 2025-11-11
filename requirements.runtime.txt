@@ -34,7 +34,7 @@ fonttools==4.60.1
     # via matplotlib
 ghp-import==2.1.0
     # via mkdocs
-griffe==1.14.0
+griffe==1.15.0
     # via mkdocstrings-python
 idna==3.11
     # via requests
@@ -197,6 +197,8 @@ traitlets==5.14.3
     #   jupyter-client
     #   jupyter-core
     #   matplotlib-inline
+typing-extensions==4.15.0
+    # via ipython
 urllib3==2.5.0
     # via requests
 watchdog==6.0.0

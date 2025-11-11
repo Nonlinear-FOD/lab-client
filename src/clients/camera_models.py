@@ -33,6 +33,27 @@ class ChameleonCameraSettings:
 
 
 @dataclass(slots=True)
+class BobcatCameraSettings:
+    """Initialization parameters for the Bobcat CVB sidecar."""
+
+    driver_path: str | None = None
+    exposure_time_us: float | None = None
+    gain_value: float | None = None
+    offset_value: int | None = None
+    cooling_target_c: float | None = None
+    timeout_ms: int | None = None
+    auto_start: bool | None = None
+
+    def to_payload(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {}
+        for field_name, value in asdict(self).items():
+            if value is None:
+                continue
+            payload[field_name] = value
+        return payload
+
+
+@dataclass(slots=True)
 class CameraWindow:
     """Rectangular region (in pixels) that can be cropped from a camera frame."""
 
