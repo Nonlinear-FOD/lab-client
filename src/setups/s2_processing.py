@@ -45,7 +45,7 @@ class S2AnalysisConfig:
 
 @dataclass
 class S2AnalysisResult:
-    """MPI summary plus intermediate maps and spectra."""
+    """Relative power summary plus intermediate maps and spectra."""
 
     wavelengths_nm: np.ndarray
     dgd_axis_ps: np.ndarray
@@ -56,7 +56,7 @@ class S2AnalysisResult:
     hom_vs_wavelength: np.ndarray
     hom_peak_dgd_ps: float
     hom_phase_map: np.ndarray
-    mpi_db: float
+    relative_power_db: float
     dominant_power: float
     hom_power: float
 
@@ -91,7 +91,7 @@ def compute_mpi(
     wavelengths_nm: np.ndarray,
     config: S2AnalysisConfig | None = None,
 ) -> S2AnalysisResult:
-    """Replicate the legacy MPI computation using FFT/DGD filtering."""
+    """Replicate the legacy MPI computation from LGN code using FFT/DGD filtering."""
     config = config or S2AnalysisConfig()
     filters = config.filters
     meas, delta_wav = _prepare_cube(cube, wavelengths_nm, config)
@@ -112,7 +112,8 @@ def compute_mpi(
     dc_filter = _bandpass(ft.shape[0], 0, i_dc)[:, None]
     fundamental_fft = ft * dc_filter
     fundamental = np.fft.irfft(fundamental_fft, n=steps, axis=0)
-    avg_fundamental = simpson(fundamental, axis=0) / steps
+    # avg_fundamental = simpson(fundamental, axis=0) / steps
+    avg_fundamental = simpson(fundamental, axis=0)
     avg_fundamental += meas_offset
 
     safe = np.clip(fundamental, config.min_intensity, None)
@@ -123,17 +124,21 @@ def compute_mpi(
     j_filtered = np.fft.irfft(j_fft * dist_filter, n=steps, axis=0)
 
     spatial_shape = np.moveaxis(cube, config.wavelength_axis, 0).shape[1:]
-    dominant_map = avg_fundamental.reshape(spatial_shape)
+    dominant_map = np.asarray(avg_fundamental).reshape(spatial_shape)
     dominant_map = np.clip(dominant_map, config.min_intensity, None)
-    hom_map = (2 * simpson(j_filtered**2, axis=0) / steps).reshape(spatial_shape)
+    # hom_map = (2 * simpson(j_filtered**2, axis=0) / steps).reshape(spatial_shape)
+    hom_map = np.asarray(2 * simpson(j_filtered**2, axis=0)).reshape(spatial_shape)
 
     total_dom = _simps2d(dominant_map)
     total_hom = _simps2d(hom_map)
     eps = 1e-18
-    mpi_db = 10 * np.log10(max(total_hom, eps) / max(total_dom, eps))
+    relative_power_db = 10 * np.log10(max(total_hom, eps) / max(total_dom, eps))
 
-    dominant_vs_wl = np.sum(fundamental, axis=1)
-    hom_vs_wl = 2 * np.sum(j_filtered**2, axis=1)
+    safe_dom = np.clip(fundamental, config.min_intensity, None)
+    # dominant_vs_wl = simpson(safe_dom, axis=1)
+    # hom_vs_wl = 2 * simpson(j_filtered**2, axis=1)
+    dominant_vs_wl = np.asarray(simpson(safe_dom, axis=1))
+    hom_vs_wl = np.asarray(2 * simpson(j_filtered**2, axis=1))
 
     hom_band = slice(i_hom_start, i_hom_end + 1)
     hom_band_fft = ft[hom_band]
@@ -153,7 +158,7 @@ def compute_mpi(
         hom_vs_wavelength=hom_vs_wl,
         hom_peak_dgd_ps=hom_peak_dgd_ps,
         hom_phase_map=hom_phase_map,
-        mpi_db=mpi_db,
+        relative_power_db=relative_power_db,
         dominant_power=total_dom,
         hom_power=total_hom,
     )
@@ -183,3 +188,186 @@ def load_scan(
         cube = frames.reshape(len(wavelengths), side, side)
         return wavelengths, cube
     raise ValueError(f"Unknown format '{fmt}'")
+
+
+def process_scan(
+    path: str | Path,
+    *,
+    fmt: Literal["auto", "npz", "legacy"] = "auto",
+    filters: DGDFilters | None = None,
+    show_plots: bool = True,
+    save_figs: bool = False,
+    output_dir: str | Path | None = None,
+) -> S2AnalysisResult:
+    """Convenience helper replicating the legacy analyzer workflow.
+
+    Args:
+        path: Path to a .npz (new) or .npy (legacy) scan file.
+        fmt: Force a specific loader; defaults to auto-detection.
+        filters: DGD window used for the DC and HOM bands.
+        show_plots: When True, open a summary Matplotlib figure.
+        save_figs: When True, write individual figures mirroring the legacy GUI
+            (FFT spectrum, dominant map, HOM map, HOM phase).
+        output_dir: Directory for saved figures (defaults to the scan's parent).
+    """
+
+    filters = filters or DGDFilters()
+    path = Path(path)
+    wavelengths, cube = load_scan(path, fmt=fmt)
+    result = compute_mpi(
+        cube,
+        wavelengths,
+        config=S2AnalysisConfig(filters=filters),
+    )
+
+    if not (show_plots or save_figs):
+        return result
+
+    import matplotlib.pyplot as plt  # Local import to avoid heavy dependency
+    from matplotlib.figure import Figure
+
+    def _plot_summary() -> Figure:
+        fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+        im0 = axes[0, 0].imshow(result.dominant_map, cmap="viridis")
+        axes[0, 0].set_title("Dominant mode intensity")
+        axes[0, 0].set_xlabel("Pixel")
+        axes[0, 0].set_ylabel("Pixel")
+        plt.colorbar(im0, ax=axes[0, 0], fraction=0.046, pad=0.04)
+
+        im1 = axes[0, 1].imshow(result.hom_map, cmap="viridis")
+        axes[0, 1].set_title(
+            f"HOM intensity @ {filters.hom_start_ps:.2f}–{filters.hom_end_ps:.2f} ps",
+        )
+        axes[0, 1].set_xlabel("Pixel")
+        axes[0, 1].set_ylabel("Pixel")
+        plt.colorbar(im1, ax=axes[0, 1], fraction=0.046, pad=0.04)
+
+        im2 = axes[0, 2].imshow(result.hom_phase_map, cmap="twilight")
+        axes[0, 2].set_title(
+            f"HOM phase @ {result.hom_peak_dgd_ps:.2f} ps",
+        )
+        axes[0, 2].set_xlabel("Pixel")
+        axes[0, 2].set_ylabel("Pixel")
+        plt.colorbar(im2, ax=axes[0, 2], fraction=0.046, pad=0.04)
+
+        dgd_db = 10 * np.log10(np.clip(result.dgd_spectrum, 1e-30, None))
+        axes[1, 0].plot(result.dgd_axis_ps, dgd_db)
+        axes[1, 0].axvspan(
+            0,
+            filters.dc_end_ps,
+            color="red",
+            alpha=0.15,
+            label="DC band",
+        )
+        axes[1, 0].axvspan(
+            filters.hom_start_ps,
+            filters.hom_end_ps,
+            color="green",
+            alpha=0.15,
+            label="HOM band",
+        )
+        axes[1, 0].set_xlabel("DGD (ps)")
+        axes[1, 0].set_ylabel("FFT amplitude (dB)")
+        axes[1, 0].set_title("DGD spectrum")
+        axes[1, 0].grid(True, alpha=0.3)
+        axes[1, 0].legend()
+
+        axes[1, 1].plot(
+            result.wavelengths_nm,
+            result.dominant_vs_wavelength,
+            label="Dominant",
+        )
+        axes[1, 1].plot(
+            result.wavelengths_nm,
+            result.hom_vs_wavelength,
+            label="HOM",
+        )
+        axes[1, 1].set_title("Integrated power vs wavelength")
+        axes[1, 1].set_xlabel("Wavelength (nm)")
+        axes[1, 1].set_ylabel("Integrated counts")
+        axes[1, 1].grid(True, alpha=0.3)
+        axes[1, 1].legend()
+
+        ratio = result.hom_vs_wavelength / np.clip(
+            result.dominant_vs_wavelength,
+            1e-18,
+            None,
+        )
+        axes[1, 2].plot(
+            result.wavelengths_nm,
+            10 * np.log10(np.clip(ratio, 1e-18, None)),
+        )
+        axes[1, 2].set_title("HOM/Dominant (dB)")
+        axes[1, 2].set_xlabel("Wavelength (nm)")
+        axes[1, 2].set_ylabel("dB")
+        axes[1, 2].grid(True, alpha=0.3)
+
+        fig.suptitle(f"Relative power {result.relative_power_db:.2f} dB")
+        fig.tight_layout()
+        return fig
+
+    def _ensure_dir() -> Path:
+        directory = Path(output_dir) if output_dir else path.parent
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    def _save_fft(fig_dir: Path) -> None:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        dgd_db = 10 * np.log10(np.clip(result.dgd_spectrum[1:], 1e-30, None))
+        ax.plot(result.dgd_axis_ps[1:], dgd_db)
+        ax.set(
+            xlabel="DGD [ps]",
+            ylabel="FFT Amplitude [dB]",
+            title="FFT amplitude spectrum",
+        )
+        ax.grid(True)
+        fig.savefig(fig_dir / f"FFT Amp {path.stem}.png", dpi=150)
+        plt.close(fig)
+
+    def _save_map(data: np.ndarray, title: str, fname: Path) -> None:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        cmap = ax.pcolormesh(data, cmap="viridis")
+        ax.set_xlabel("Pixel")
+        ax.set_ylabel("Pixel")
+        ax.set_title(title)
+        fig.colorbar(cmap, ax=ax, fraction=0.046, pad=0.04)
+        fig.savefig(fname, dpi=150)
+        plt.close(fig)
+
+    def _save_hom_phase(fig_dir: Path) -> None:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        cmap = ax.pcolormesh(result.hom_phase_map, cmap="twilight")
+        ax.set_xlabel("Pixel")
+        ax.set_ylabel("Pixel")
+        ax.set_title(f"HOM phase. DGD = {result.hom_peak_dgd_ps:.2f} ps")
+        fig.colorbar(cmap, ax=ax, fraction=0.046, pad=0.04)
+        fig.savefig(fig_dir / f"HOM phase distributed {path.stem}.png", dpi=150)
+        plt.close(fig)
+
+    if save_figs:
+        out_dir = _ensure_dir()
+        summary_fig = _plot_summary()
+        summary_fig.savefig(out_dir / f"Summary {path.stem}.png", dpi=150)
+        plt.close(summary_fig)
+        _save_fft(out_dir)
+        _save_map(
+            result.dominant_map,
+            "Dominant",
+            out_dir / f"Dominant {path.stem}.png",
+        )
+        _save_map(
+            result.hom_map,
+            (
+                "HOM amplitude. "
+                f"{filters.hom_start_ps:.2f}–{filters.hom_end_ps:.2f} ps\n"
+                f"Rel. power = {result.relative_power_db:.1f} dB"
+            ),
+            out_dir / f"HOM amp distributed {path.stem}.png",
+        )
+        _save_hom_phase(out_dir)
+
+    if show_plots:
+        fig = _plot_summary()
+        fig.show()
+
+    return result

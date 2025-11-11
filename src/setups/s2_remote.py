@@ -35,7 +35,7 @@ class DeviceEndpoint:
 
 
 class CameraProtocol(Protocol):
-    def grab_frame(self, averages: int = 1) -> np.ndarray: ...
+    def grab_frame(self, averages: int = 1, **kwargs: Any) -> np.ndarray: ...
     def close(self) -> None: ...
 
 
@@ -96,6 +96,7 @@ class S2ProcessingConfig:
     background_frames: int = 1
     transform: str = "linear"  # or "scintacor"
     dtype: np.dtype | str | None = np.float32
+    server_binning: bool = False
 
     def normalized_dtype(self) -> np.dtype | None:
         if self.dtype is None:
@@ -173,7 +174,6 @@ class S2RemoteSetup:
             )
             cam.connect_camera()
             cam.start_capture()
-            time.sleep(2)
             return cam
         if kind == "thorlabs":
             return ThorlabsCameraClient(
@@ -184,11 +184,11 @@ class S2RemoteSetup:
             )
         raise ValueError(f"Unsupported camera kind '{kind}'")
 
-    def grab_frame(self, averages: int = 1) -> np.ndarray:
+    def grab_frame(self, averages: int = 1, **kwargs: Any) -> np.ndarray:
         """Fetch a frame from whichever camera is connected."""
         if self._cam_client is None:
             raise RuntimeError("Camera client not connected")
-        return self._cam_client.grab_frame(averages=averages)
+        return self._cam_client.grab_frame(averages=averages, **kwargs)
 
     # ------------------------------------------------------------------ laser helpers
     def _connect_laser(self, kind: str) -> LaserProtocol:
@@ -211,6 +211,7 @@ class S2RemoteSetup:
         if self._laser_client is not None and hasattr(self._laser_client, "enable"):
             try:
                 self._laser_client.enable()  # type: ignore[attr-defined]
+                time.sleep(3)
             except Exception:
                 pass
 
@@ -233,18 +234,25 @@ class S2RemoteSetup:
         wavelength_nm: float,
         averages: int = 1,
         settle_s: float = 0.0,
+        frame_kwargs: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Move laser, optionally wait, capture averaged frame, and return payload."""
         self._set_laser_wavelength(wavelength_nm)
         if settle_s > 0:
             time.sleep(settle_s)
-        frame = self.grab_frame(averages=averages)
+        kwargs = frame_kwargs or {}
+        frame = self.grab_frame(averages=averages, **kwargs)
         return {
             "wavelength_nm": wavelength_nm,
             "frame": frame,
         }
 
-    def run_scan(self, config: S2ScanConfig) -> List[Dict[str, Any]]:
+    def run_scan(
+        self,
+        config: S2ScanConfig,
+        *,
+        frame_kwargs: Dict[str, Any] | None = None,
+    ) -> List[Dict[str, Any]]:
         """Execute an S2 sweep over the configured wavelength span."""
         results: List[Dict[str, Any]] = []
         for wl in config.wavelengths():
@@ -252,9 +260,25 @@ class S2RemoteSetup:
                 wl,
                 averages=config.averages,
                 settle_s=config.settle_s,
+                frame_kwargs=frame_kwargs,
             )
             results.append(result)
         return results
+
+    def _camera_frame_kwargs(
+        self,
+        processing: S2ProcessingConfig | None,
+    ) -> Dict[str, Any]:
+        if processing is None or not processing.server_binning:
+            return {}
+        roi = {
+            "x_start": int(processing.window.x_start),
+            "x_end": int(processing.window.x_end),
+            "y_start": int(processing.window.y_start),
+            "y_end": int(processing.window.y_end),
+        }
+        output = max(1, int(processing.output_pixels))
+        return {"roi": roi, "output_pixels": output}
 
     # ------------------------------------------------------------------ higher-level workflow
     def capture_background(
@@ -262,12 +286,14 @@ class S2RemoteSetup:
         *,
         averages: int,
         frames: int,
+        frame_kwargs: Dict[str, Any] | None = None,
     ) -> np.ndarray:
         """Average several frames to form a background image."""
         samples = max(1, int(frames))
         captures: List[np.ndarray] = []
+        kwargs = frame_kwargs or {}
         for _ in range(samples):
-            captures.append(self.grab_frame(averages=averages))
+            captures.append(self.grab_frame(averages=averages, **kwargs))
         if len(captures) == 1:
             return captures[0]
         return np.mean(captures, axis=0)
@@ -285,9 +311,11 @@ class S2RemoteSetup:
             raise ValueError("Scan produced no wavelengths—check step size")
 
         camera_averages = max(1, int(scan.averages))
+        frame_kwargs = self._camera_frame_kwargs(processing)
         background = self.capture_background(
             averages=camera_averages,
             frames=processing.background_frames,
+            frame_kwargs=frame_kwargs,
         )
         processed_frames: List[np.ndarray] = []
         raw_frames: List[np.ndarray] = []
@@ -296,6 +324,7 @@ class S2RemoteSetup:
                 wavelength,
                 averages=camera_averages,
                 settle_s=scan.settle_s,
+                frame_kwargs=frame_kwargs,
             )
             raw = np.asarray(step["frame"])
             raw_frames.append(raw)
@@ -330,12 +359,15 @@ class S2RemoteSetup:
         working = frame.astype(np.float64, copy=False)
         working -= background
         working = self._apply_transform(working, processing.transform)
-        cropped = self._crop_frame(working, processing.window)
-        binned = self._bin_frame(cropped, processing.output_pixels)
+        region = working
+        if not processing.server_binning:
+            region = self._crop_frame(region, processing.window)
+        if not processing.server_binning:
+            region = self._bin_frame(region, processing.output_pixels)
         dtype = processing.normalized_dtype()
         if dtype is not None:
-            return binned.astype(dtype, copy=False)
-        return binned
+            return region.astype(dtype, copy=False)
+        return region
 
     @staticmethod
     def _apply_transform(frame: np.ndarray, transform: str) -> np.ndarray:

@@ -21,11 +21,21 @@ class ThorlabsCameraClient(LabDeviceClient):
         super().__init__(base_url, device_name, user=user, debug=debug)
         self._initialize_device(kwargs)
 
-    def grab_frame(self, averages: int = 1, dtype: np.dtype | None = None) -> np.ndarray:
-        """Capture frame(s) with optional on-device averaging."""
+    def grab_frame(
+        self,
+        averages: int = 1,
+        dtype: np.dtype | None = None,
+        roi: Dict[str, int] | None = None,
+        output_pixels: int | None = None,
+    ) -> np.ndarray:
+        """Capture frame(s) with optional on-device averaging/cropping/binning."""
         payload: Dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
+        if roi:
+            payload["roi"] = {k: int(v) for k, v in roi.items()}
+        if output_pixels is not None:
+            payload["output_pixels"] = int(output_pixels)
         frame = self.call("grab_frame", **payload)
         array = np.asarray(frame)
         if dtype is not None:
