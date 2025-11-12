@@ -117,7 +117,10 @@ class S2ProcessingConfig:
     def normalized_dtype(self) -> npt.DTypeLike | None:
         if self.dtype is None:
             return None
-        return np.dtype(self.dtype)
+        try:
+            return np.dtype(self.dtype)
+        except TypeError:
+            return None
 
 
 @dataclass
