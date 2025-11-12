@@ -2,7 +2,7 @@ from .base_client import LabDeviceClient
 
 
 class BoxoptronicsEDFAClient(LabDeviceClient):
-    """Client for Box Optronics EDFA amplifier.
+    """Client for Box Optronics EDFA.
 
     Server-side driver: `devices.boxoptronics_edfa.BoxoptronicsEDFA`.
 
@@ -13,6 +13,7 @@ class BoxoptronicsEDFAClient(LabDeviceClient):
         user: Optional user name for server-side locking.
         debug: When true, server returns detailed error payloads.
     """
+
     def __init__(
         self,
         base_url: str,
