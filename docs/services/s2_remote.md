@@ -1,4 +1,4 @@
-# S2 Remote
+# S2 Remote Orchestrator
 
 High-level helper that ties together a tunable laser and camera client to reproduce the legacy S2 measurement flow over HTTP.
 

@@ -24,14 +24,12 @@ nav:
       - PicoScope 2000A: devices/picoscope2000a.md
       - Tektronix Oscilloscope: devices/oscilloscope.md
       - OSA: devices/osa.md
+      - Chameleon Camera: devices/chameleon_camera.md
+      - Bobcat Camera: devices/bobcat_camera.md
       - Thorlabs PM100: devices/thorlabs_pm.md
       - Thorlabs MPC320: devices/thorlabs_mpc320.md
       - Thorlabs KCube Motor: devices/kinesis_motor.md
       - Box Optronics EDFA: devices/boxoptronics_edfa.md
-      - Cameras:
-          - Chameleon: devices/camera/chameleon.md
-          - Bobcat: devices/camera/bobcat.md
-          - Thorlabs: devices/camera/thorlabs.md
       - Lasers:
           - Base & Mixins: devices/lasers/base.md
           - Ando: devices/lasers/ando.md
@@ -41,7 +39,7 @@ nav:
   - Services:
       - Overview: services/overview.md
       - Polarization Optimizer: services/polarization_optimizer.md
-      - S2 Remote: services/s2_remote.md
+      - S2 Remote Orchestrator: services/s2_remote.md
       - S2 Processing: services/s2_processing.md
   - Setups:
       - LPG Fabrication: setups/lpg.md
