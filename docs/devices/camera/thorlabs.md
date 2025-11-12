@@ -35,7 +35,7 @@ cam.close()
 
 - The server must run on Windows with the Thorlabs/IDS uc480 `.NET` SDK installed; the driver loads `uc480DotNet.dll` from `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\Develop\DotNet`.
 - AOI and pixel format defaults match the legacy `cam_control.py` script but can be overridden in the server config before connecting.
-- This client mirrors the API of the sidecar cameras so S2 tooling can swap between `"thorlabs"`, `"chameleon"`, and `"bobcat"` kinds.
+- This client mirrors the API of the sidecar cameras so S2 tooling can swap between `"thorlabs"`, `"chameleon"`, `"spiricon"`, and `"bobcat"` kinds.
 
 ## API Reference
 

@@ -5,14 +5,16 @@ from typing import Any, Dict
 
 
 @dataclass(slots=True)
-class ChameleonCameraSettings:
-    """Initialization parameters for the Chameleon sidecar.
+class PyCapture2CameraSettings:
+    """Initialization parameters for the PyCapture2 sidecar.
 
     Any field left unset falls back to the defaults defined by the server’s
     sidecar configuration.
     """
 
+    camera_kind: str | None = None
     index: int | None = None
+    serial_number: int | None = None
     width: int | None = None
     height: int | None = None
     offset_x: int | None = None
@@ -30,6 +32,11 @@ class ChameleonCameraSettings:
                 continue
             payload[field_name] = value
         return payload
+
+
+# Backwards compatibility aliases
+ChameleonCameraSettings = PyCapture2CameraSettings
+SpiriconCameraSettings = PyCapture2CameraSettings
 
 
 @dataclass(slots=True)

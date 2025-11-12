@@ -24,12 +24,15 @@ nav:
       - PicoScope 2000A: devices/picoscope2000a.md
       - Tektronix Oscilloscope: devices/oscilloscope.md
       - OSA: devices/osa.md
-      - Chameleon Camera: devices/chameleon_camera.md
-      - Bobcat Camera: devices/bobcat_camera.md
       - Thorlabs PM100: devices/thorlabs_pm.md
       - Thorlabs MPC320: devices/thorlabs_mpc320.md
       - Thorlabs KCube Motor: devices/kinesis_motor.md
       - Box Optronics EDFA: devices/boxoptronics_edfa.md
+      - Cameras:
+          - Chameleon Camera: devices/camera/chameleon.md
+          - Spiricon Camera: devices/camera/spiricon.md
+          - Bobcat Camera: devices/camera/bobcat.md
+          - Thorlabs Camera: devices/camera/thorlabs.md
       - Lasers:
           - Base & Mixins: devices/lasers/base.md
           - Ando: devices/lasers/ando.md

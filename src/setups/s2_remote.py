@@ -16,7 +16,7 @@ from typing import Any, Iterable, Protocol
 import numpy as np
 import numpy.typing as npt
 
-from clients.camera_models import BobcatCameraSettings, ChameleonCameraSettings
+from clients.camera_models import BobcatCameraSettings, PyCapture2CameraSettings
 from clients.chameleon_client import ChameleonClient
 from clients.laser_clients import (
     AgilentLaserClient,
@@ -24,6 +24,7 @@ from clients.laser_clients import (
     TiSapphireClient,
 )
 from clients.bobcat_client import BobcatClient
+from clients.spiricon_client import SpiriconClient
 from clients.thorlabs_camera_client import ThorlabsCameraClient
 
 
@@ -157,7 +158,7 @@ class S2RemoteSetup:
 
     camera: DeviceEndpoint
     laser: DeviceEndpoint
-    camera_kind: str = "chameleon"  # or "thorlabs", "bobcat"
+    camera_kind: str = "chameleon"  # or "spiricon", "thorlabs", "bobcat"
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
@@ -186,8 +187,21 @@ class S2RemoteSetup:
         if kind == "chameleon":
             cam_kwargs = dict(self.camera.init_kwargs)
             settings = cam_kwargs.pop("settings", None)
-            settings_obj = self._as_chameleon_settings(settings)
+            settings_obj = self._as_pycapture2_settings(settings)
             cam = ChameleonClient(
+                self.camera.base_url,
+                self.camera.device_name,
+                user=self.camera.user,
+                settings=settings_obj,
+                **cam_kwargs,
+            )
+            cam.start_capture()
+            return cam
+        if kind == "spiricon":
+            cam_kwargs = dict(self.camera.init_kwargs)
+            settings = cam_kwargs.pop("settings", None)
+            settings_obj = self._as_pycapture2_settings(settings)
+            cam = SpiriconClient(
                 self.camera.base_url,
                 self.camera.device_name,
                 user=self.camera.user,
@@ -219,16 +233,16 @@ class S2RemoteSetup:
         raise ValueError(f"Unsupported camera kind '{kind}'")
 
     @staticmethod
-    def _as_chameleon_settings(
-        payload: ChameleonCameraSettings | dict[str, Any] | None,
-    ) -> ChameleonCameraSettings | None:
+    def _as_pycapture2_settings(
+        payload: PyCapture2CameraSettings | dict[str, Any] | None,
+    ) -> PyCapture2CameraSettings | None:
         if payload is None:
             return None
-        if isinstance(payload, ChameleonCameraSettings):
+        if isinstance(payload, PyCapture2CameraSettings):
             return payload
         if isinstance(payload, dict):
-            return ChameleonCameraSettings(**payload)
-        raise TypeError("Unsupported settings payload for Chameleon camera")
+            return PyCapture2CameraSettings(**payload)
+        raise TypeError("Unsupported settings payload for PyCapture2 camera")
 
     @staticmethod
     def _as_bobcat_settings(

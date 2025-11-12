@@ -40,7 +40,7 @@ laser = DeviceEndpoint(
 setup = S2RemoteSetup(
     camera=camera,
     laser=laser,
-    camera_kind="bobcat",   # "chameleon" or "thorlabs" are also supported
+    camera_kind="bobcat",   # "chameleon", "spiricon", or "thorlabs" are also supported
     laser_kind="ando",
 )
 
@@ -60,10 +60,10 @@ print(result.relative_power_db)
 
 ## Key Concepts
 
-- **camera_kind** — choose `"chameleon"`, `"bobcat"`, or `"thorlabs"`; the setup instantiates the matching client and auto-starts capture.
+- **camera_kind** — choose `"chameleon"`, `"spiricon"`, `"bobcat"`, or `"thorlabs"`; the setup instantiates the matching client and auto-starts capture.
 - **DeviceEndpoint** — bundles base URL, device name, optional `user`, and client-specific kwargs (such as camera `settings`).
 - **Server binning** — set `processing.server_binning=True` to offload cropping/binning to the camera proxy; otherwise frames are processed locally after download.
-- **Safety checks** — saturation warnings rely on each client’s `max_signal` (255 for Chameleon, 35300 for Bobcat).
+- **Safety checks** — saturation warnings rely on each client’s `max_signal` (255 for Chameleon, 65 535 for Spiricon, 35 300 for Bobcat).
 
 ## Tips
 

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from clients.camera_models import ChameleonCameraSettings
+from clients.camera_models import SpiriconCameraSettings
 from clients.pycapture2_client import PyCapture2Client
 
 
-class ChameleonClient(PyCapture2Client):
-    """Legacy alias that pins :class:`PyCapture2Client` to Chameleon defaults."""
+class SpiriconClient(PyCapture2Client):
+    """Thin wrapper that pins :class:`PyCapture2Client` to Spiricon defaults."""
 
     def __init__(
         self,
@@ -15,7 +15,7 @@ class ChameleonClient(PyCapture2Client):
         device_name: str,
         user: str | None = None,
         debug: bool = False,
-        settings: ChameleonCameraSettings | None = None,
+        settings: SpiriconCameraSettings | None = None,
         auto_connect: bool = True,
         max_signal: float | None = None,
         **kwargs: Any,
@@ -27,7 +27,7 @@ class ChameleonClient(PyCapture2Client):
             debug=debug,
             settings=settings,
             auto_connect=auto_connect,
-            camera_kind="chameleon",
+            camera_kind="spiricon",
             max_signal=max_signal,
             **kwargs,
         )
