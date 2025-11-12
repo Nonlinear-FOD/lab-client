@@ -35,19 +35,19 @@ from clients.laser_clients import AndoLaserClient
 from clients.osa_clients import OSAClient
 
 server = "http://<server-ip>:5000"
-
+user = "alice"
 laser = AndoLaserClient(
     server,
     "ando_laser_1",
     target_wavelength=1550,
     power=0,
-    user="<your-name>",
+    user=user,
 )
 osa = OSAClient(
     server,
     "osa_1",
     span=(1545, 1555),
-    user="<your-name>",
+    user=user,
 )
 
 laser.enable()
