@@ -111,7 +111,7 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"  # or "scintacor"
-    dtype: npt.DTypeLike | str | None = np.floating
+    dtype: npt.DTypeLike | str | None = None
     server_binning: bool = False
 
     def normalized_dtype(self) -> npt.DTypeLike | None:
