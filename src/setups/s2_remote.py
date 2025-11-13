@@ -120,7 +120,7 @@ class S2ProcessingConfig:
     window: S2ImageWindow
     output_pixels: int = 64
     background_frames: int = 1
-    transform: str = "linear"  # or "scintacor"
+    transform: str = "linear"
     server_binning: bool = True
 
 
@@ -378,10 +378,11 @@ class S2RemoteSetup:
         self,
         scan: S2ScanConfig,
         processing: S2ProcessingConfig,
-        *,
         save_path: str | Path | None = None,
     ) -> S2ScanResult:
         """Capture a full scan and return the processed (cropped/binned) cube."""
+        if self.camera_kind == "chameleon":
+            processing.transform = "scintacor"
         wavelengths = list(scan.wavelengths())
         if not wavelengths:
             raise ValueError("Scan produced no wavelengths—check step size")
