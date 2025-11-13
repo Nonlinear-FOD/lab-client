@@ -40,7 +40,6 @@ laser = DeviceEndpoint(
 setup = S2RemoteSetup(
     camera=camera,
     laser=laser,
-    camera_kind="bobcat",   # "chameleon", "spiricon", or "thorlabs" are also supported
     laser_kind="ando",
 )
 
@@ -49,7 +48,7 @@ processing = S2ProcessingConfig(
     window=S2ImageWindow(0, 800, 0, 800),
     output_pixels=64,
     background_frames=5,
-    server_binning=False,
+    server_binning=True,
 )
 
 setup.connect()

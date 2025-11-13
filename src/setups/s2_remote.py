@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Iterable, Protocol
 
 import numpy as np
-import numpy.typing as npt
 
 from clients.camera_models import BobcatCameraSettings, PyCapture2CameraSettings
 from clients.chameleon_client import ChameleonClient
@@ -26,6 +25,17 @@ from clients.laser_clients import (
 from clients.bobcat_client import BobcatClient
 from clients.spiricon_client import SpiriconClient
 from clients.thorlabs_camera_client import ThorlabsCameraClient
+
+
+def _get_camera_kind(camera_name: str) -> str:
+    if camera_name == "chameleon_scintacor" or camera_name == "chameleon_1mu":
+        return "chameleon"
+    elif camera_name == "thorlabs_camera":
+        return "thorlabs"
+    elif camera_name == "bobcat_camera":
+        return "bobcat"
+    else:
+        raise ValueError("Invalid camera name")
 
 
 @dataclass
@@ -111,16 +121,7 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"  # or "scintacor"
-    dtype: npt.DTypeLike | str | None = None
-    server_binning: bool = False
-
-    def normalized_dtype(self) -> npt.DTypeLike | None:
-        if self.dtype is None:
-            return None
-        try:
-            return np.dtype(self.dtype)
-        except TypeError:
-            return None
+    server_binning: bool = True
 
 
 @dataclass
@@ -157,15 +158,17 @@ class S2ScanResult:
 
 @dataclass
 class S2RemoteSetup:
-    """Composable orchestrator for S2 experiments using remote instruments."""
+    """Orchestrator for S2 experiments using remote instruments."""
 
     camera: DeviceEndpoint
     laser: DeviceEndpoint
-    camera_kind: str = "chameleon"  # or "spiricon", "thorlabs", "bobcat"
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
     _camera_max_signal: float | None = field(init=False, default=None)
+
+    def __post_init__(self):
+        self.camera_kind = _get_camera_kind(self.camera.device_name)
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
@@ -437,9 +440,6 @@ class S2RemoteSetup:
             region = self._crop_frame(region, processing.window)
         if not processing.server_binning:
             region = self._bin_frame(region, processing.output_pixels)
-        dtype = processing.normalized_dtype()
-        if dtype is not None:
-            return region.astype(dtype, copy=False)
         return region
 
     def _read_camera_max_signal(self) -> float | None:
