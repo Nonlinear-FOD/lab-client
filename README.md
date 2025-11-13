@@ -56,6 +56,21 @@ print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
 ```
 
+Authentication & token storage
+------------------------------
+
+The first request to a secured lab server now triggers a GitHub device-code login. The client prints a short URL + code; open it, authorize the GitHub OAuth app, and the client will cache tokens under `~/.remote_lab_auth.json` (override with `LAB_CLIENT_TOKEN_PATH`). Future sessions reuse those tokens and silently refresh them until the refresh token expires.
+
+- Nothing special is required in your code—instantiating any device client will automatically prompt when the server demands auth.
+- To pre-login (e.g., before creating devices) run:
+
+  ```python
+  from clients.auth_manager import LabAuthManager
+  LabAuthManager("http://127.0.0.1:5000").authorization_header()
+  ```
+
+- Set `LAB_CLIENT_DISABLE_AUTH=1` only when talking to legacy servers without the auth layer; otherwise requests will fail with `401 Unauthorized`.
+
 What the setup script does
 - uv install: Installs Astral’s `uv` using the official installer.
   - Windows: runs PowerShell with ExecutionPolicy Bypass and executes `install.ps1`.
