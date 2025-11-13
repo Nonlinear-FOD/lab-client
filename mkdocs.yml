@@ -17,6 +17,7 @@ plugins:
             filters: []
 nav:
   - Overview: index.md
+  - Dependency Workflow: manage_dependencies.md
   - Devices:
       - Zaber 1D: devices/zaber_1d.md
       - Keithley 2700: devices/keithley_2700.md
