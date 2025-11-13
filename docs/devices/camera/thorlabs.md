@@ -19,14 +19,14 @@ cam = ThorlabsCameraClient(
     camera_name,
     user=user,
 )
-frame = cam.grab_frame(averages=5)
-print(cam.shape, cam.max_signal)
+frame, overflow = cam.grab_frame(averages=5)
+print(cam.shape, cam.max_signal, overflow)
 cam.close()
 ```
 
 ## Common Operations
 
-- `grab_frame(averages=N, window=..., output_pixels=M)` — leverage on-device averaging/cropping/binning before frames are returned.
+- `grab_frame(averages=N, window=..., output_pixels=M)` — returns `(frame, overflow)` so you can react to uc480 saturation immediately.
 - `shape` — fetch the configured AOI dimensions for downstream processing.
 - `max_signal` — use to guard against saturation (255 for Mono8, 65535 for Mono16).
 - `close()` — shuts down the uc480 driver and releases the server-side instance.

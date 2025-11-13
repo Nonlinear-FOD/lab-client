@@ -51,10 +51,11 @@ class DeviceEndpoint:
 class CameraProtocol(Protocol):
     """Minimal surface expected from camera clients used in S2RemoteSetup."""
 
-    def grab_frame(self, *args: Any, **kwargs: Any) -> np.ndarray: ...
+    def grab_frame(
+        self, *args: Any, **kwargs: Any
+    ) -> tuple[np.ndarray, bool]: ...
+
     def close(self) -> None: ...
-    @property
-    def max_signal(self) -> int | float: ...
 
 
 class LaserProtocol(Protocol):
@@ -126,7 +127,7 @@ class S2ProcessingConfig:
 
 @dataclass
 class S2ScanResult:
-    """Processed scan cube plus metadata."""
+    """Processed scan cube plus metadata (including per-step overflow flags)."""
 
     wavelengths_nm: np.ndarray
     cube: np.ndarray  # shape: (steps, rows, cols)
@@ -165,7 +166,6 @@ class S2RemoteSetup:
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
-    _camera_max_signal: float | None = field(init=False, default=None)
 
     def __post_init__(self):
         self.camera_kind = _get_camera_kind(self.camera.device_name)
@@ -176,7 +176,6 @@ class S2RemoteSetup:
         self._cam_client = self._connect_camera(self.camera_kind)
         self._laser_client = self._connect_laser(self.laser_kind)
         self._enable_laser_output()
-        self._camera_max_signal = self._read_camera_max_signal()
 
     def disconnect(self) -> None:
         """Close all live clients."""
@@ -186,7 +185,6 @@ class S2RemoteSetup:
                     client.close()
                 except Exception:
                     pass
-        self._camera_max_signal = None
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
@@ -262,7 +260,7 @@ class S2RemoteSetup:
             return BobcatCameraSettings(**payload)
         raise TypeError("Unsupported settings payload for Bobcat camera")
 
-    def grab_frame(self, averages: int = 1, **kwargs: Any) -> np.ndarray:
+    def grab_frame(self, averages: int = 1, **kwargs: Any) -> tuple[np.ndarray, bool]:
         """Fetch a frame from whichever camera is connected."""
         if self._cam_client is None:
             raise RuntimeError("Camera client not connected")
@@ -319,11 +317,12 @@ class S2RemoteSetup:
         if settle_s > 0:
             time.sleep(settle_s)
         kwargs = frame_kwargs or {}
-        frame = self.grab_frame(averages=averages, **kwargs)
-        self._check_saturation(frame, context=f"{wavelength_nm:.3f} nm")
+        frame, overflow = self.grab_frame(averages=averages, **kwargs)
+        self._warn_overflow(overflow, context=f"{wavelength_nm:.3f} nm")
         return {
             "wavelength_nm": wavelength_nm,
             "frame": frame,
+            "overflow": overflow,
         }
 
     def run_scan(
@@ -354,6 +353,10 @@ class S2RemoteSetup:
         output = max(1, int(processing.output_pixels))
         return {"window": roi, "output_pixels": output}
 
+    def _warn_overflow(self, overflow: bool, context: str) -> None:
+        if overflow:
+            print(f"[S2] Warning: camera reported sensor saturation during {context}")
+
     # ------------------------------------------------------------------ higher-level workflow
     def capture_background(
         self,
@@ -367,8 +370,8 @@ class S2RemoteSetup:
         captures: list[np.ndarray] = []
         kwargs = frame_kwargs or {}
         for _ in range(samples):
-            frame = self.grab_frame(averages=averages, **kwargs)
-            self._check_saturation(frame, context="background")
+            frame, overflow = self.grab_frame(averages=averages, **kwargs)
+            self._warn_overflow(overflow, context="background")
             captures.append(frame)
         if len(captures) == 1:
             return captures[0]
@@ -396,6 +399,7 @@ class S2RemoteSetup:
         )
         processed_frames: list[np.ndarray] = []
         raw_frames: list[np.ndarray] = []
+        overflow_flags: list[bool] = []
         for wavelength in wavelengths:
             step = self.run_single_step(
                 wavelength,
@@ -405,6 +409,8 @@ class S2RemoteSetup:
             )
             raw = np.asarray(step["frame"], dtype=float)
             raw_frames.append(raw)
+            # track sensor saturation status per wavelength step
+            overflow_flags.append(bool(step.get("overflow", False)))
             processed_frames.append(
                 self._process_frame(raw, background, processing),
             )
@@ -415,6 +421,7 @@ class S2RemoteSetup:
             "processing": asdict(processing),
             "camera_kind": self.camera_kind,
             "laser_kind": self.laser_kind,
+            "overflow_flags": overflow_flags,
         }
         result = S2ScanResult(
             wavelengths_nm=np.asarray(wavelengths, dtype=float),
@@ -442,26 +449,6 @@ class S2RemoteSetup:
         if not processing.server_binning:
             region = self._bin_frame(region, processing.output_pixels)
         return region
-
-    def _read_camera_max_signal(self) -> float | None:
-        client = self._cam_client
-        if client is None:
-            return None
-        value = getattr(client, "max_signal", None)
-        try:
-            return float(value) if value is not None else None
-        except (TypeError, ValueError):
-            return None
-
-    def _check_saturation(self, frame: np.ndarray, context: str) -> None:
-        if self._camera_max_signal is None:
-            return
-        max_val = float(np.nanmax(frame))
-        if max_val >= 0.98 * self._camera_max_signal:
-            print(
-                f"[S2] Warning: frame near saturation ({max_val:.1f} / "
-                f"{self._camera_max_signal:.1f}) during {context}",
-            )
 
     @staticmethod
     def _apply_transform(frame: np.ndarray, transform: str) -> np.ndarray:

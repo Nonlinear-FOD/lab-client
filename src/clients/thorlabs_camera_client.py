@@ -28,8 +28,8 @@ class ThorlabsCameraClient(LabDeviceClient):
         dtype: np.dtype | None = None,
         window: CameraWindow | Dict[str, int] | None = None,
         output_pixels: int | None = None,
-    ) -> np.ndarray:
-        """Capture frame(s) with optional on-device averaging/cropping/binning."""
+    ) -> Tuple[np.ndarray, bool]:
+        """Capture frame(s) plus overflow flag with optional averaging/cropping/binning."""
         payload: Dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
@@ -40,11 +40,14 @@ class ThorlabsCameraClient(LabDeviceClient):
                 payload["window"] = {k: int(v) for k, v in window.items()}
         if output_pixels is not None:
             payload["output_pixels"] = int(output_pixels)
-        frame = self.call("grab_frame", **payload)
-        array = np.asarray(frame)
+        result = self.call("grab_frame", **payload)
+        if not isinstance(result, dict) or "frame" not in result:
+            raise RuntimeError("Camera response missing frame data")
+        array = np.asarray(result["frame"])
         if dtype is not None:
             array = array.astype(dtype, copy=False)
-        return array
+        overflow = bool(result.get("overflow", False))
+        return array, overflow
 
     @property
     def shape(self) -> Tuple[int, int]:

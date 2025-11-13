@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -77,8 +77,8 @@ class PyCapture2Client(LabDeviceClient):
         dtype: np.dtype | None = None,
         window: CameraWindow | Dict[str, int] | None = None,
         output_pixels: int | None = None,
-    ) -> np.ndarray:
-        """Capture a frame with optional averaging, windowing and binning."""
+    ) -> Tuple[np.ndarray, bool]:
+        """Capture a frame with optional averaging/cropping/binning + overflow flag."""
         payload: Dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
@@ -89,11 +89,14 @@ class PyCapture2Client(LabDeviceClient):
                 payload["window"] = {k: int(v) for k, v in window.items()}
         if output_pixels is not None:
             payload["output_pixels"] = int(output_pixels)
-        frame = self.call("grab_frame", **payload)
-        array = np.asarray(frame)
+        result = self.call("grab_frame", **payload)
+        if not isinstance(result, dict) or "frame" not in result:
+            raise RuntimeError("Camera response missing frame data")
+        array = np.asarray(result["frame"])
         if dtype is not None:
             array = array.astype(dtype, copy=False)
-        return array
+        overflow = bool(result.get("overflow", False))
+        return array, overflow
 
     def disconnect_camera(self) -> Dict[str, Any]:
         """Disconnect the camera sidecar."""
