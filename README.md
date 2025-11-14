@@ -33,6 +33,7 @@ Example usage
 ```python
 from clients.laser_clients import AndoLaserClient
 from clients.osa_clients import OSAClient
+from clients.lab_overview_client import LabOverviewClient
 
 server = "http://<server-ip>:5000"
 user = "alice"
@@ -54,6 +55,10 @@ laser.enable()
 osa.sweep()
 print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
+
+overview = LabOverviewClient(server, user=user)
+print(overview.sessions())      # see per-user workers
+overview.restart_session()      # restart your own worker if it wedges
 ```
 
 Authentication & token storage

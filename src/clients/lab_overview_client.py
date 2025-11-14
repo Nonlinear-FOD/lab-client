@@ -70,27 +70,53 @@ class LabOverviewClient:
         resp = self._perform_request("GET", url)
         return self._json_or_raise(resp)
 
+    # ------------------------------------------------------------------
+    # Session management helpers
+    # ------------------------------------------------------------------
+    def sessions(self) -> dict[str, Any]:
+        """Return metadata about all active per-user workers.
+
+        Returns:
+            JSON payload from `GET /sessions` (user -> port, started_at, last_seen, alive).
+        """
+        url = f"{self.base_url}/sessions"
+        resp = self._perform_request("GET", url)
+        return self._json_or_raise(resp)
+
+    def restart_session(self) -> dict[str, Any]:
+        """Restart the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/restart"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def shutdown_session(self) -> dict[str, Any]:
+        """Shut down the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/shutdown"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def restart_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to restart another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/restart"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def shutdown_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to shut down another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/shutdown"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
     def list_used_instruments(self) -> dict[str, Any]:
         """Return current locks: which user holds which device (if any)."""
         url = f"{self.base_url}/overview/locks"
         resp = self._perform_request("GET", url)
         return self._json_or_raise(resp)
 
-    def list_connected_instruments(
-        self, probe_idn: bool = False, timeout_ms: int = 300
-    ) -> dict[str, Any]:
-        """Enumerate VISA resources on the server host.
-
-        Args:
-            probe_idn: If true, the server queries `*IDN?` for each resource.
-            timeout_ms: Timeout in milliseconds for the probe.
-
-        Returns:
-            Dict with a `"visa"` key containing resource info and optional IDNs.
-        """
+    def list_connected_instruments(self) -> dict[str, Any]:
+        """Enumerate VISA resources on the server host (no probing)."""
         url = f"{self.base_url}/system/resources"
-        params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}
-        resp = self._perform_request("GET", url, params=params)
+        resp = self._perform_request("GET", url)
         return self._json_or_raise(resp)
 
     def _perform_request(self, method: str, url: str, **kwargs: Any) -> requests.Response:

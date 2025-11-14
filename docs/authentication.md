@@ -2,7 +2,7 @@
 
 This guide explains how the lab-client handles GitHub-based authentication. The goals:
 
-- Zero manual setup for typical users—first request triggers a GitHub device login automatically.
+- Zero manual setup for typical users - first request triggers a GitHub device login automatically.
 - Automatic token persistence + refresh.
 - Transparent recovery when tokens expire or the server revokes access.
 - Simple escape hatch (`LAB_CLIENT_DISABLE_AUTH=1`) when connecting to legacy servers or when the server has disabled auth entirely.
@@ -57,11 +57,10 @@ Overview endpoints (`/overview/*`, `/system/resources`) don’t inherit `LabDevi
 | `LAB_CLIENT_TOKEN_PATH` | Client | Override default token cache file. |
 | `LAB_CLIENT_DISABLE_AUTH` | Client | When set to `1/true/yes`, skips all auth logic (no `Authorization` header, no device flow). Use when talking to servers that have `LAB_AUTH_DISABLE=1`. |
 
-Set these in the shell **before** launching your Python session. Example (PowerShell):
+Set these in the shell (or env variables GUI) **before** launching your Python session. Example (PowerShell):
 
 ```powershell
 $Env:LAB_CLIENT_DISABLE_AUTH = "1"
-uv run ipython
 # ... later ...
 $Env:LAB_CLIENT_DISABLE_AUTH = $null
 ```
@@ -79,7 +78,7 @@ $Env:LAB_CLIENT_DISABLE_AUTH = $null
    - `_perform_request()` replays the original call with the new Bearer token; the device connects successfully.
 3. Later requests reuse the cached token silently. When the server says 401 again (token expired), the retry branch re-authenticates without any manual steps.
 
-If GitHub is unreachable or the user is removed from the org, the second attempt still fails—`requests` raises a runtime error so the user knows to contact an admin.
+If GitHub is unreachable or the user is removed from the org, the second attempt still fails - `requests` raises a runtime error so the user knows to contact an admin.
 
 ## Token Store Format
 
@@ -87,7 +86,7 @@ If GitHub is unreachable or the user is removed from the org, the second attempt
 
 ```json
 {
-  "http://10.51.33.1:5000": {
+  "http://server:5000": {
     "user": {"login": "alice", "name": "Alice Example", ...},
     "issued_at": 1736360000,
     "access_token": "…",
