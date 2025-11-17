@@ -243,6 +243,80 @@ class LPGFabError(RuntimeError):
     """Raised when an unrecoverable LPG sequencing error occurs."""
 
 
+class _LPGStackPreview:
+    """Mini helper to keep the LPG spectra plot responsive during a run."""
+
+    def __init__(self, *, title: str = "LPG spectra") -> None:
+        self.title = title
+        self._plt: Any | None = None
+        self._fig: Any | None = None
+        self._ax: Any | None = None
+
+    def _ensure_fig(self) -> bool:
+        import matplotlib.pyplot as plt  # Local import avoids base cost when disabled.
+
+        if self._plt is None:
+            self._plt = plt
+        if self._fig is None:
+            plt.ion()
+            self._fig, self._ax = plt.subplots(num=self.title)
+            return True
+        if not plt.fignum_exists(self._fig.number):
+            return False
+        if self._ax is None:
+            self._ax = self._fig.gca()
+        return True
+
+    def update(self, spec: FloatArray, *, start_period: int) -> bool:
+        """Redraw the stacked spectra figure. Returns False if the window was closed."""
+        if spec.size == 0:
+            return self._ensure_fig()
+        if not self._ensure_fig():
+            return False
+        assert self._plt is not None and self._fig is not None and self._ax is not None
+
+        wl = np.asarray(spec[:, 0], dtype=float)
+        self._ax.clear()
+        for idx in range(1, spec.shape[1]):
+            if idx == 1:
+                label = "-1"
+            else:
+                label = str(start_period + (idx - 2))
+            self._ax.plot(wl, spec[:, idx], label=label)
+        self._ax.set_xlabel("Wavelength (nm)")
+        self._ax.set_ylabel("Power (dB rel. ref)")
+        self._ax.grid(True)
+        self._ax.legend(loc="best", fontsize=8, ncol=2)
+        self._fig.canvas.draw_idle()
+        self._fig.canvas.flush_events()
+        self._plt.pause(0.01)
+        return True
+
+    def save(self, path: Path) -> bool:
+        """Persist the current figure to *path*. Returns False if no figure is open."""
+        if (
+            self._plt is None
+            or self._fig is None
+            or not self._plt.fignum_exists(self._fig.number)
+        ):
+            return False
+        try:
+            self._fig.savefig(path, dpi=130, bbox_inches="tight")
+            return True
+        except Exception:
+            return False
+
+    def close(self) -> None:
+        if (
+            self._plt is not None
+            and self._fig is not None
+            and self._plt.fignum_exists(self._fig.number)
+        ):
+            self._plt.close(self._fig)
+        self._ax = None
+        self._fig = None
+
+
 class LPGFab:
     """High-level coordinator for LPG write/read workflows."""
 
@@ -318,6 +392,7 @@ class LPGFab:
             self.zaber.units = self.settings.stage_units
 
         self._tls_on = bool(self.osa.TLS)
+        self._stack_preview: _LPGStackPreview | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -350,6 +425,9 @@ class LPGFab:
 
     def close(self) -> None:
         """Release instrument sessions."""
+        if self._stack_preview is not None:
+            self._stack_preview.close()
+            self._stack_preview = None
         for client in (self.osa, self.zaber, self.psu, self.dmm):
             try:
                 close = getattr(client, "close", None)
@@ -618,20 +696,16 @@ class LPGFab:
 
     def _plot_stack(self, spec: FloatArray, *, start_period: int) -> None:
         """Plot stacked spectra columns for quick visual inspection."""
-        wl = np.asarray(spec[:, 0], dtype=float)
-        plt.figure("LPG spectra")
-        plt.clf()
-        for idx in range(1, spec.shape[1]):
-            if idx == 1:
-                label = -1
-            else:
-                label = start_period + (idx - 2)
-            plt.plot(wl, spec[:, idx], label=str(label))
-        plt.xlabel("Wavelength (nm)")
-        plt.ylabel("Power (dB rel. ref)")
-        plt.grid(True)
-        plt.legend(loc="best", fontsize=8, ncol=2)
-        plt.pause(0.01)
+        if not self.settings.plot_stack:
+            return
+        if self._stack_preview is None:
+            self._stack_preview = _LPGStackPreview()
+        still_open = self._stack_preview.update(spec, start_period=start_period)
+        if not still_open:
+            self.logger.info("Live LPG preview closed; disabling plot_stack updates.")
+            self.settings.plot_stack = False
+            self._stack_preview.close()
+            self._stack_preview = None
 
     def _save_artifacts(self, spec: FloatArray, resistances: list[float]) -> None:
         """Persist spectra, plots and settings summaries for this run."""
@@ -654,6 +728,9 @@ class LPGFab:
 
     def _save_plot(self, path: Path) -> None:
         """Write the current Matplotlib stack figure to *path*."""
+        preview = self._stack_preview
+        if preview is not None and preview.save(path):
+            return
         try:
             plt.figure("LPG spectra")
             plt.savefig(path, dpi=130, bbox_inches="tight")

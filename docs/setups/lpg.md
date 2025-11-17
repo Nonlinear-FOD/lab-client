@@ -99,7 +99,7 @@ customisation:
 | `psu_type` | `"Tenma"` | Metadata field carried into CSV log. |
 | `measure_reference` | `True` | Capture a fresh reference spectrum before writing. |
 | `reference_path` | `None` | Optional explicit path to reference CSV. |
-| `plot_stack` | `True` | Enable live Matplotlib plot and PNG export. |
+| `plot_stack` | `True` | Enable the live Matplotlib preview (you can close it mid-run). |
 | `zaber_com_port` | `None` | Override COM port when instantiating `Zaber1DMotorClient`. |
 | `psu_com_port` | `None` | Override COM port for `TenmaPSUClient`. |
 | `psu_channel` | `2` | Active PSU channel to drive. |
@@ -115,7 +115,7 @@ with `settings.directory = r"C:\\data\\lpg_runs"` and
 - `C:\data\lpg_runs\sample_A1_log.csv`
 - `C:\data\lpg_runs\sample_A1_run.json`
 
-Disable live plotting by setting `plot_stack=False` in the run settings.
+Disable live plotting by setting `plot_stack=False` in the run settings. Closing the live preview window during a run simply stops further updates—the measurement keeps going, and you can re-enable plotting on the next run.
 ## API Reference
 
 ::: setups.lpg_fabrication.LPGFab
