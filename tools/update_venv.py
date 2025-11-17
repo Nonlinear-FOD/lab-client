@@ -27,32 +27,21 @@ def ensure_uv() -> str:
     return uv
 
 
-def _determine_repo_root(project: Path) -> Path:
-    """Return the lab-client root directory.
-
-    When this script is templated during setup we drop in an absolute path. If
-    that value is still the sentinel, fall back to using this file's location or
-    the caller's project tree.
-    """
-    if HARDCODED_REPO_ROOT != "__REPO_ROOT__":
-        root = Path(HARDCODED_REPO_ROOT)
-        if root.is_dir():
-            return root
-    # Best effort: this template normally lives in lab-client/tools/
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent.parent,
-        project / "lab-client",
-        project.parent / "lab-client",
-        here.parent,
-    ]
-    for candidate in candidates:
-        if candidate.is_dir() and (candidate / "requirements.runtime.txt").exists():
-            return candidate
-    raise FileNotFoundError(
-        "Unable to determine lab-client root. Set HARDCODED_REPO_ROOT "
-        "to an absolute path or place this script inside the repo tree.",
-    )
+def _determine_repo_root() -> Path:
+    """Return the lab-client root directory or instruct the user to set it."""
+    if HARDCODED_REPO_ROOT == "__REPO_ROOT__":
+        raise RuntimeError(
+            "HARDCODED_REPO_ROOT still contains the placeholder path.\n"
+            "Edit update_venv.py and set HARDCODED_REPO_ROOT to the absolute "
+            "path of your lab-client repo (e.g. /home/user/remote_lab_control/lab-client).",
+        )
+    root = Path(HARDCODED_REPO_ROOT)
+    if not root.is_dir():
+        raise RuntimeError(
+            f"Configured HARDCODED_REPO_ROOT '{root}' does not exist. "
+            "Update the path to point at your lab-client checkout.",
+        )
+    return root
 
 
 def _git_pull(repo_root: Path) -> None:
@@ -81,8 +70,8 @@ def main() -> int:
 
     # Resolve the lab-client repo root (hard-coded during setup if available)
     try:
-        repo_root = _determine_repo_root(project)
-    except FileNotFoundError as exc:
+        repo_root = _determine_repo_root()
+    except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 3
     reqs = repo_root / "requirements.runtime.txt"
