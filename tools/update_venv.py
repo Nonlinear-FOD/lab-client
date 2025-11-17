@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+HARDCODED_REPO_ROOT = "__REPO_ROOT__"
+
 
 def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
@@ -25,6 +27,12 @@ def ensure_uv() -> str:
     return uv
 
 
+def _determine_repo_root() -> Path:
+    if HARDCODED_REPO_ROOT != "__REPO_ROOT__":
+        return Path(HARDCODED_REPO_ROOT)
+    return Path(__file__).resolve().parent.parent
+
+
 def main() -> int:
     # Run from the project directory that contains the .venv
     project = Path.cwd()
@@ -37,9 +45,8 @@ def main() -> int:
         )
         return 2
 
-    # Find the lab-client repo root (this script lives in lab-client/tools/)
-    tools_dir = Path(__file__).resolve().parent
-    repo_root = tools_dir.parent
+    # Resolve the lab-client repo root (hard-coded during setup if available)
+    repo_root = _determine_repo_root()
     reqs = repo_root / "requirements.runtime.txt"
     if not reqs.exists():
         print(f"ERROR: Missing requirements file at {reqs}", file=sys.stderr)

@@ -267,8 +267,11 @@ def main() -> int:
     try:
         if not repo_updater.exists():
             raise FileNotFoundError(f"Missing template updater: {repo_updater}")
-        shutil.copy2(repo_updater, updater)
-        print(f"Copied project updater: {updater}")
+        template = repo_updater.read_text(encoding="utf-8")
+        path_literal = str(repo_root).replace("\\", "\\\\")
+        script = template.replace("__REPO_ROOT__", path_literal)
+        updater.write_text(script, encoding="utf-8")
+        print(f"Wrote project updater: {updater}")
     except Exception as e:
         print(f"WARNING: Could not copy project updater script: {e}")
 
