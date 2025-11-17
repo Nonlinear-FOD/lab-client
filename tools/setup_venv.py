@@ -261,68 +261,16 @@ def main() -> int:
         ]
     )
 
-    # 6) Drop a simple project-local updater to pull + sync deps
+    # 6) Copy the project-local updater helper
+    repo_updater = repo_tools / "update_venv.py"
     updater = project / "update_venv.py"
     try:
-        script = f"""
-from __future__ import annotations
-
-import os
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
-
-def run(cmd: list[str]) -> None:
-    subprocess.run(cmd, check=True)
-
-
-def venv_python(project: Path) -> Path:
-    venv = project / ".venv"
-    return venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-
-
-def main() -> int:
-    project = Path.cwd()
-    py = venv_python(project)
-    if not py.exists():
-        print(f"ERROR: .venv not found at {py}. Run setup_venv.py first.", file=sys.stderr)
-        return 2
-
-    repo_root = Path(r"{repo_root}")
-    if not repo_root.exists():
-        print(f"ERROR: lab-client directory missing at {{repo_root}}", file=sys.stderr)
-        return 3
-
-    uv = shutil.which("uv")
-    if not uv:
-        print("ERROR: `uv` is required. Install from https://docs.astral.sh/uv/", file=sys.stderr)
-        return 4
-
-    # 1) Pull latest client code (fast‑forward only)
-    print(f"Pulling latest in {{repo_root}} …")
-    run(["git", "-C", str(repo_root), "pull", "--ff-only"])
-
-    # 2) Sync venv to pinned requirements
-    reqs = repo_root / "requirements.runtime.txt"
-    if not reqs.exists():
-        print(f"ERROR: Missing requirements file at {{reqs}}", file=sys.stderr)
-        return 5
-    print(f"Syncing venv packages from {{reqs}} …")
-    run([uv, "pip", "sync", "-r", str(reqs), "--python", str(py)])
-
-    print("Done. Clients updated and venv synced.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-""".lstrip()
-        updater.write_text(script, encoding="utf-8")
-        print(f"Wrote project updater: {updater}")
+        if not repo_updater.exists():
+            raise FileNotFoundError(f"Missing template updater: {repo_updater}")
+        shutil.copy2(repo_updater, updater)
+        print(f"Copied project updater: {updater}")
     except Exception as e:
-        print(f"WARNING: Could not write project updater script: {e}")
+        print(f"WARNING: Could not copy project updater script: {e}")
 
     print("\nSetup complete. To use this environment:")
     print(f"  Interpreter: {py}")
