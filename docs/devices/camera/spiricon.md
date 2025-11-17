@@ -23,7 +23,7 @@ settings = PyCapture2CameraSettings(
 )
 cam = SpiriconClient(camera_server_url, camera_name, user=user, settings=settings)
 cam.start_capture()
-frame = cam.grab_frame(averages=3)  # numpy array
+frame, overflow = cam.grab_frame(averages=3)  # numpy array + saturation flag
 cam.disconnect_camera()
 cam.close()
 ```
@@ -32,7 +32,7 @@ cam.close()
 
 - `connect_camera(settings=...)` — push Format7 ROI, pixel format, serial binding, or auto-start options.
 - `start_capture()` / `stop_capture()` — mirror the PyCapture2 streaming calls.
-- `grab_frame(averages=N, window=..., output_pixels=M)` — request raw or server-binned frames; window expects pixel indices.
+- `grab_frame(averages=N, window=..., output_pixels=M)` — request raw or server-binned frames; returns `(frame, overflow)` to reflect hardware saturation.
 - `max_signal` — defaults to 65 535 digital counts for 16-bit operation but can be overridden per setup.
 
 ## Notes

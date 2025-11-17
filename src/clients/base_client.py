@@ -1,6 +1,11 @@
-import requests
-import numpy as np
+import os
+from pathlib import Path
 from typing import Any
+
+import numpy as np
+import requests
+
+from .auth_manager import AuthError, LabAuthManager
 
 
 class LabDeviceClient:
@@ -11,6 +16,7 @@ class LabDeviceClient:
 
     - Stores the server `base_url` and `device_name` and builds request URLs.
     - Adds `X-User` and `X-Debug` headers when configured (locks + rich errors).
+    - Handles GitHub-based auth via LabAuthManager, storing tokens per server.
     - Normalizes HTTP/JSON errors to Python exceptions with readable messages.
     - Provides helpers for property GET/SET, method calls, and disconnect.
     - Converts JSON lists to numpy arrays where appropriate.
@@ -46,11 +52,21 @@ class LabDeviceClient:
         device_name: str,
         user: str | None = None,
         debug: bool = False,
+        auth: LabAuthManager | None = None,
+        token_path: str | Path | None = None,
+        interactive_auth: bool = True,
     ):
         self.base_url = base_url.rstrip("/")
         self.device_name = device_name
         self.device_url = f"{self.base_url}/devices/{device_name}"
-        self.user = user
+        self._auth = auth
+        if self._auth is None and not _auth_disabled():
+            self._auth = LabAuthManager(
+                self.base_url,
+                token_path=token_path,
+                interactive=interactive_auth,
+            )
+        self.user = user or (self._auth.user_login() if self._auth else None)
         self.debug = bool(debug)
 
     def _headers(self) -> dict[str, str]:
@@ -59,6 +75,18 @@ class LabDeviceClient:
             headers["X-User"] = self.user
         if self.debug:
             headers["X-Debug"] = "1"
+        if self._auth:
+            try:
+                headers["Authorization"] = self._auth.authorization_header()
+                if "X-User" not in headers:
+                    login = self._auth.user_login()
+                    if login:
+                        headers["X-User"] = login
+                        self.user = login
+            except AuthError as exc:
+                raise RuntimeError(
+                    f"Authentication with {self.base_url} failed: {exc}"
+                ) from exc
         return headers
 
     def _json_or_raise(self, resp: requests.Response) -> dict[str, Any]:
@@ -83,33 +111,23 @@ class LabDeviceClient:
     def _initialize_device(self, init_payload: dict[str, Any]) -> None:
         url = f"{self.device_url}/connect"
         cleaned_payload = {k: v for k, v in init_payload.items() if v is not None}
-        try:
-            self._json_or_raise(
-                requests.post(url, json=cleaned_payload, headers=self._headers())
-            )
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(
-                f"Could not connect to device at {self.base_url}: {e}"
-            ) from e
+        resp = self._perform_request("POST", url, json=cleaned_payload)
+        self._json_or_raise(resp)
 
     def _request(self, endpoint: str, method: str, value: Any | None = None) -> object:
         url = f"{self.device_url}/{endpoint}"
         if method not in self.PROPERTY_METHODS:
             raise ValueError(f"Method must be {' or '.join(self.PROPERTY_METHODS)}")
-        try:
-            if method == "GET":
-                data = self._json_or_raise(requests.get(url, headers=self._headers()))
-                result = data.get("value")
-                if isinstance(result, list):
-                    return np.array(result)
-                return result
-            else:  # POST setter
-                data = self._json_or_raise(
-                    requests.post(url, json={"value": value}, headers=self._headers())
-                )
-                return data
-        except requests.exceptions.ConnectionError:
-            raise ConnectionError(f"Could not reach {self.base_url}")
+        if method == "GET":
+            resp = self._perform_request("GET", url)
+            data = self._json_or_raise(resp)
+            result = data.get("value")
+            if isinstance(result, list):
+                return np.array(result)
+            return result
+        else:
+            resp = self._perform_request("POST", url, json={"value": value})
+            return self._json_or_raise(resp)
 
     def get_property(self, name: str) -> Any:
         return self._request(name, "GET")
@@ -128,7 +146,8 @@ class LabDeviceClient:
         - All client .close() methods delegate to .disconnect() for consistency.
         """
         url = f"{self.base_url}/devices/{self.device_name}/disconnect"
-        self._json_or_raise(requests.post(url, headers=self._headers()))
+        resp = self._perform_request("POST", url)
+        self._json_or_raise(resp)
 
     def call(self, name: str, **kwargs: Any) -> Any:
         """
@@ -136,9 +155,8 @@ class LabDeviceClient:
         Returns the 'result' field (converted to numpy arrays where appropriate).
         """
         url = f"{self.device_url}/{name}"
-        resp = self._json_or_raise(
-            requests.post(url, json=kwargs or {}, headers=self._headers())
-        )
+        resp = self._perform_request("POST", url, json=kwargs or {})
+        resp = self._json_or_raise(resp)
         result = resp.get("result")
         if isinstance(result, list):
             try:
@@ -148,3 +166,42 @@ class LabDeviceClient:
             except Exception:
                 pass
         return result
+
+    def _perform_request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+        """
+        Send an HTTP request with auth retry logic. If the server responds 401 once,
+        the cached session is dropped and the request is re-issued (triggering a fresh login).
+        """
+        base_payload = dict(kwargs)
+        timeout = base_payload.pop("timeout", None)
+        attempts = 0
+        while True:
+            payload = dict(base_payload)
+            try:
+                resp = requests.request(
+                    method,
+                    url,
+                    headers=self._headers(),
+                    timeout=timeout,
+                    **payload,
+                )
+            except requests.exceptions.RequestException as exc:
+                raise ConnectionError(f"Could not reach {self.base_url}: {exc}") from exc
+
+            if (
+                resp.status_code == 401
+                and self._auth
+                and attempts == 0
+            ):
+                self._auth.reset_session()
+                attempts += 1
+                continue
+            return resp
+
+
+def _auth_disabled() -> bool:
+    return os.environ.get("LAB_CLIENT_DISABLE_AUTH", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )

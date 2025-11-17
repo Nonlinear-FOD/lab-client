@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+
 import requests
+
+from .auth_manager import AuthError, LabAuthManager
+from .base_client import _auth_disabled
 
 
 class LabOverviewClient:
@@ -13,12 +18,43 @@ class LabOverviewClient:
         user: Optional user name for lock-aware endpoints (passed as `X-User`).
     """
 
-    def __init__(self, base_url: str, user: str | None = None):
+    def __init__(
+        self,
+        base_url: str,
+        user: str | None = None,
+        auth: LabAuthManager | None = None,
+        token_path: str | Path | None = None,
+        interactive_auth: bool = True,
+    ):
         self.base_url = base_url.rstrip("/")
         self.user = user
+        self._auth = None
+        if not _auth_disabled():
+            self._auth = auth or LabAuthManager(
+                self.base_url,
+                token_path=token_path,
+                interactive=interactive_auth,
+            )
+            if self.user is None:
+                self.user = self._auth.user_login()
 
     def _headers(self) -> dict[str, str]:
-        return {"X-User": self.user} if self.user else {}
+        headers: dict[str, str] = {}
+        if self.user:
+            headers["X-User"] = self.user
+        if self._auth:
+            try:
+                headers["Authorization"] = self._auth.authorization_header()
+                if "X-User" not in headers:
+                    login = self._auth.user_login()
+                    if login:
+                        headers["X-User"] = login
+                        self.user = login
+            except AuthError as exc:
+                raise RuntimeError(
+                    f"Authentication with {self.base_url} failed: {exc}"
+                ) from exc
+        return headers
 
     def _json_or_raise(self, resp: requests.Response) -> dict[str, Any]:
         resp.raise_for_status()
@@ -31,32 +67,81 @@ class LabOverviewClient:
             Mapping of device name to `{"connected": bool, "connected_since": str|None, "used_by": str|None}`.
         """
         url = f"{self.base_url}/overview/devices"
-        return self._json_or_raise(requests.get(url, headers=self._headers()))
+        resp = self._perform_request("GET", url)
+        return self._json_or_raise(resp)
+
+    # ------------------------------------------------------------------
+    # Session management helpers
+    # ------------------------------------------------------------------
+    def sessions(self) -> dict[str, Any]:
+        """Return metadata about all active per-user workers.
+
+        Returns:
+            JSON payload from `GET /sessions` (user -> port, started_at, last_seen, alive).
+        """
+        url = f"{self.base_url}/sessions"
+        resp = self._perform_request("GET", url)
+        return self._json_or_raise(resp)
+
+    def restart_session(self) -> dict[str, Any]:
+        """Restart the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/restart"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def shutdown_session(self) -> dict[str, Any]:
+        """Shut down the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/shutdown"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def restart_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to restart another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/restart"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
+
+    def shutdown_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to shut down another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/shutdown"
+        resp = self._perform_request("POST", url)
+        return self._json_or_raise(resp)
 
     def list_used_instruments(self) -> dict[str, Any]:
         """Return current locks: which user holds which device (if any)."""
         url = f"{self.base_url}/overview/locks"
-        return self._json_or_raise(requests.get(url, headers=self._headers()))
+        resp = self._perform_request("GET", url)
+        return self._json_or_raise(resp)
 
-    def list_connected_instruments(
-        self, probe_idn: bool = False, timeout_ms: int = 300
-    ) -> dict[str, Any]:
-        """Enumerate VISA resources on the server host.
-
-        Args:
-            probe_idn: If true, the server queries `*IDN?` for each resource.
-            timeout_ms: Timeout in milliseconds for the probe.
-
-        Returns:
-            Dict with a `"visa"` key containing resource info and optional IDNs.
-        """
+    def list_connected_instruments(self) -> dict[str, Any]:
+        """Enumerate VISA resources on the server host (no probing)."""
         url = f"{self.base_url}/system/resources"
-        params = {"probe_idn": str(probe_idn).lower(), "timeout_ms": timeout_ms}
-        try:
-            return self._json_or_raise(
-                requests.get(url, params=params, headers=self._headers())
-            )
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(
-                f"Could not retrieve connected instruments from {url}: {e}"
-            ) from e
+        resp = self._perform_request("GET", url)
+        return self._json_or_raise(resp)
+
+    def _perform_request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+        base_payload = dict(kwargs)
+        timeout = base_payload.pop("timeout", None)
+        attempts = 0
+        while True:
+            payload = dict(base_payload)
+            try:
+                resp = requests.request(
+                    method,
+                    url,
+                    headers=self._headers(),
+                    timeout=timeout,
+                    **payload,
+                )
+            except requests.exceptions.RequestException as exc:
+                raise ConnectionError(f"Could not reach {self.base_url}: {exc}") from exc
+
+            if (
+                resp.status_code == 401
+                and self._auth
+                and attempts == 0
+            ):
+                self._auth.reset_session()
+                attempts += 1
+                continue
+            return resp

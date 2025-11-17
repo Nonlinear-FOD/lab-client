@@ -29,8 +29,8 @@ cam = BobcatClient(
     user=user,
 )
 cam.start_capture()
-frame = cam.grab_frame(averages=4)
-print(frame.shape, frame.dtype)
+frame, overflow = cam.grab_frame(averages=4)
+print(frame.shape, frame.dtype, overflow)
 cam.disconnect_camera()
 cam.close()
 ```
@@ -38,8 +38,8 @@ cam.close()
 ## Common Operations
 
 - Use `BobcatCameraSettings` to override exposure, gain/offset, cooling target, or custom VIN path.
-- `grab_frame(averages=N, window=..., output_pixels=M)` matches the Chameleon API, so downstream code (e.g., S2RemoteSetup) can swap cameras via `camera_kind`.
-- `max_signal` reflects the 16‑bit ADC (35300 counts) for better saturation warnings.
+- `grab_frame(averages=N, window=..., output_pixels=M)` returns `(frame, overflow)` so you can act immediately on sensor saturation that was detected server-side.
+- `max_signal` still reflects the 16‑bit ADC (35300 counts) in case you need to set thresholds client-side.
 
 ## Notes
 

@@ -62,7 +62,22 @@ print(result.relative_power_db)
 - **camera_kind** — choose `"chameleon"`, `"spiricon"`, `"bobcat"`, or `"thorlabs"`; the setup instantiates the matching client and auto-starts capture.
 - **DeviceEndpoint** — bundles base URL, device name, optional `user`, and client-specific kwargs (such as camera `settings`).
 - **Server binning** — set `processing.server_binning=True` to offload cropping/binning to the camera proxy; otherwise frames are processed locally after download.
-- **Safety checks** — saturation warnings rely on each client’s `max_signal` (255 for Chameleon, 65 535 for Spiricon, 35 300 for Bobcat).
+- **Frame API** — both `S2RemoteSetup.grab_frame()` and `run_single_step()` return an `(array, overflow)` pair so callers can react to saturation immediately.
+- **Overflow tracking** — every `grab_frame` now returns `(frame, overflow)` and `run_single_step`/scan metadata record when the camera reports sensor saturation.
+- **Live preview flag** — `S2ScanConfig.live_preview` (defaults to `True`) opens a Matplotlib window while `run_scan()`/`run_processed_scan()` stream data so you can monitor max counts and catch overloads in real time. Set it to `False` for headless jobs.
+
+## Live Preview
+
+`S2RemoteSetup.live_preview()` exposes the standalone live-view loop that used to live in `testing_client/test_s2.py`. It continuously pulls frames from the currently configured camera until you close the window or press `Ctrl+C`, which is handy for alignment and focus checks before starting an acquisition. The same viewer is launched automatically when `scan.live_preview=True`, updating with the latest frame as each wavelength finishes during a scan.
+
+```python
+setup.connect()
+setup.live_preview(processing=processing, frame_averages=5)
+# kick off a scan; the viewer stays in sync while frames arrive
+result = setup.run_processed_scan(scan, processing)
+```
+
+Disable the auto-popup by setting `scan.live_preview=False` before calling `run_scan()`/`run_processed_scan()`.
 
 ## Tips
 

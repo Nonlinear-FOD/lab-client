@@ -49,7 +49,7 @@ def main() -> int:
 
     print(f"Syncing venv packages from {reqs} …")
     # Use sync so removed packages are also uninstalled
-    run([uv, "pip", "sync", "-r", str(reqs), "--python", str(py)])
+    run([uv, "pip", "sync", str(reqs), "--python", str(py)])
 
     print("Done. Your venv now matches the pinned requirements.")
     return 0
@@ -57,4 +57,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
