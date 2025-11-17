@@ -60,16 +60,16 @@ class PyCapture2Client(LabDeviceClient):
                 continue
             payload[key] = value
         if not payload:
-            return dict(self.call("connect_sidecar"))
-        return dict(self.call("connect_sidecar", **payload))
+            return self._call_sidecar_dict("connect_sidecar")
+        return self._call_sidecar_dict("connect_sidecar", **payload)
 
     def start_capture(self) -> Dict[str, Any]:
         """Begin streaming frames on the remote sidecar."""
-        return dict(self.call("start_capture"))
+        return self._call_sidecar_dict("start_capture")
 
     def stop_capture(self) -> Dict[str, Any]:
         """Stop streaming frames on the remote sidecar."""
-        return dict(self.call("stop_capture"))
+        return self._call_sidecar_dict("stop_capture")
 
     def grab_frame(
         self,
@@ -90,17 +90,28 @@ class PyCapture2Client(LabDeviceClient):
         if output_pixels is not None:
             payload["output_pixels"] = int(output_pixels)
         result = self.call("grab_frame", **payload)
-        if not isinstance(result, dict) or "frame" not in result:
-            raise RuntimeError("Camera response missing frame data")
-        array = np.asarray(result["frame"])
+        frame_payload: Any
+        overflow_flag: Any
+        if isinstance(result, dict):
+            if "frame" not in result:
+                raise RuntimeError("Camera response missing frame data")
+            frame_payload = result["frame"]
+            overflow_flag = result.get("overflow", False)
+        elif isinstance(result, (list, tuple)) and len(result) == 2:
+            frame_payload, overflow_flag = result
+        else:
+            raise RuntimeError(
+                f"Unexpected payload from grab_frame: {type(result)!r}"
+            )
+        array = np.asarray(frame_payload)
         if dtype is not None:
             array = array.astype(dtype, copy=False)
-        overflow = bool(result.get("overflow", False))
+        overflow = bool(overflow_flag)
         return array, overflow
 
     def disconnect_camera(self) -> Dict[str, Any]:
         """Disconnect the camera sidecar."""
-        return dict(self.call("disconnect_sidecar"))
+        return self._call_sidecar_dict("disconnect_sidecar")
 
     @property
     def max_signal(self) -> float:
@@ -123,3 +134,12 @@ class PyCapture2Client(LabDeviceClient):
             self.disconnect_camera()
         finally:
             self.disconnect()
+
+    def _call_sidecar_dict(self, method: str, **kwargs: Any) -> Dict[str, Any]:
+        """Invoke a sidecar method and ensure a mapping is returned."""
+        result = self.call(method, **kwargs)
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                f"Sidecar method '{method}' returned unexpected payload {type(result)!r}"
+            )
+        return dict(result)

@@ -9,6 +9,7 @@ plug in laser steps—so you can iterate quickly before porting the GUI.
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Protocol
@@ -79,6 +80,7 @@ class S2ScanConfig:
     step_nm: float
     settle_s: float = 0.2
     averages: int = 1  # grab N frames per wavelength and average
+    live_preview: bool = True
 
     def wavelengths(self) -> Iterable[float]:
         if self.step_nm == 0:
@@ -155,6 +157,106 @@ class S2ScanResult:
         out_path = Path(path)
         np.save(out_path, self.to_legacy_array())
         return out_path
+
+
+class _LivePreviewWindow:
+    """Simple Matplotlib window that streams frames with status text."""
+
+    def __init__(self, cmap: str = "magma", max_fps_samples: int = 25):
+        self.cmap = cmap
+        self.max_fps_samples = max(2, int(max_fps_samples))
+        self._timestamps: deque[float] = deque(maxlen=self.max_fps_samples)
+        self._frame_count = 0
+        self._plt = None
+        self.fig = None
+        self.ax = None
+        self._image = None
+
+    def is_open(self) -> bool:
+        if self._plt is None or self.fig is None:
+            return False
+        return self._plt.fignum_exists(self.fig.number)
+
+    def _init_plot(self, frame: np.ndarray) -> None:
+        import matplotlib.pyplot as plt
+
+        self._plt = plt
+        plt.ion()
+        self.fig, self.ax = plt.subplots()
+        self._image = self.ax.imshow(frame, cmap=self.cmap)
+        self.ax.set_title("Initializing…")
+        self.fig.colorbar(self._image, ax=self.ax, fraction=0.046, pad=0.04)
+        self.fig.tight_layout()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
+        self._timestamps.clear()
+        self._frame_count = 0
+
+    def update(
+        self,
+        frame: np.ndarray,
+        *,
+        status: str = "",
+        overflow: bool = False,
+        grab_latency_ms: float | None = None,
+    ) -> bool:
+        frame = np.asarray(frame)
+        if frame.size == 0:
+            return self.is_open()
+        if not self.is_open():
+            self._init_plot(frame)
+        assert self._image is not None and self.ax is not None and self._plt is not None
+
+        self._frame_count += 1
+        self._image.set_data(frame)
+        try:
+            vmin = float(np.nanmin(frame))
+        except ValueError:
+            vmin = 0.0
+        try:
+            vmax = float(np.nanmax(frame))
+        except ValueError:
+            vmax = vmin + 1e-6
+        if not np.isfinite(vmin):
+            vmin = 0.0
+        if not np.isfinite(vmax) or vmax <= vmin:
+            vmax = vmin + 1e-6
+        self._image.set_clim(vmin=vmin, vmax=vmax)
+
+        now = time.perf_counter()
+        self._timestamps.append(now)
+        if len(self._timestamps) > 1:
+            elapsed = self._timestamps[-1] - self._timestamps[0]
+            fps = (len(self._timestamps) - 1) / elapsed if elapsed > 0 else float("nan")
+        else:
+            fps = float("nan")
+
+        parts = [f"{self._frame_count} frames"]
+        if np.isfinite(fps):
+            parts.append(f"{fps:.1f} FPS")
+        if grab_latency_ms is not None:
+            parts.append(f"{grab_latency_ms:.1f} ms")
+        if status:
+            parts.append(status)
+        if overflow:
+            parts.append("SATURATED")
+        self.ax.set_title(" | ".join(parts))
+
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
+        self._plt.pause(0.001)
+        return self.is_open()
+
+    def close(self) -> None:
+        if self._plt is not None and self.fig is not None and self.is_open():
+            self._plt.close(self.fig)
+        self.fig = None
+        self.ax = None
+        self._image = None
+        self._plt = None
+        self._timestamps.clear()
+        self._frame_count = 0
 
 
 @dataclass
@@ -332,16 +434,85 @@ class S2RemoteSetup:
         frame_kwargs: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Execute an S2 sweep over the configured wavelength span."""
+        preview = _LivePreviewWindow() if config.live_preview else None
         results: list[dict[str, Any]] = []
         for wl in config.wavelengths():
+            step_start = time.perf_counter()
             result = self.run_single_step(
                 wl,
                 averages=config.averages,
                 settle_s=config.settle_s,
                 frame_kwargs=frame_kwargs,
             )
+            elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+            if preview is not None:
+                still_open = preview.update(
+                    np.asarray(result["frame"]),
+                    status=f"{wl:.3f} nm",
+                    overflow=bool(result.get("overflow", False)),
+                    grab_latency_ms=elapsed_ms,
+                )
+                if not still_open:
+                    preview.close()
+                    preview = None
             results.append(result)
+        if preview is not None:
+            preview.close()
         return results
+
+    def live_preview(
+        self,
+        *,
+        enable_preview: bool = True,
+        processing: S2ProcessingConfig | None = None,
+        frame_kwargs: dict[str, Any] | None = None,
+        frame_averages: int | None = None,
+        max_fps_samples: int = 25,
+        cmap: str = "magma",
+    ) -> None:
+        """Open a Matplotlib live view that streams frames until closed."""
+        if not enable_preview:
+            return
+        if self._cam_client is None:
+            raise RuntimeError("Camera client not connected")
+
+        averages = max(1, int(frame_averages or 1))
+        cam_kwargs = dict(frame_kwargs or {})
+        if not cam_kwargs and processing is not None:
+            cam_kwargs = self._camera_frame_kwargs(processing)
+
+        preview = _LivePreviewWindow(cmap=cmap, max_fps_samples=max_fps_samples)
+        frame_count = 0
+        last_log = time.perf_counter()
+
+        try:
+            while True:
+                start = time.perf_counter()
+                frame, overflow = self.grab_frame(averages=averages, **cam_kwargs)
+                frame = np.asarray(frame)
+                elapsed_ms = (time.perf_counter() - start) * 1000.0
+                frame_count += 1
+
+                if overflow:
+                    self._warn_overflow(True, context="live preview")
+                if not preview.update(
+                    frame,
+                    status="",
+                    overflow=overflow,
+                    grab_latency_ms=elapsed_ms,
+                ):
+                    break
+
+                now = time.perf_counter()
+                if now - last_log >= 1.0:
+                    print(
+                        f"[live] frame {frame_count} | {elapsed_ms:.1f} ms per request",
+                    )
+                    last_log = now
+        except KeyboardInterrupt:
+            print("Stopping live preview.")
+        finally:
+            preview.close()
 
     def _camera_frame_kwargs(
         self,
@@ -400,7 +571,9 @@ class S2RemoteSetup:
         processed_frames: list[np.ndarray] = []
         raw_frames: list[np.ndarray] = []
         overflow_flags: list[bool] = []
+        preview = _LivePreviewWindow() if scan.live_preview else None
         for wavelength in wavelengths:
+            step_start = time.perf_counter()
             step = self.run_single_step(
                 wavelength,
                 averages=camera_averages,
@@ -411,11 +584,23 @@ class S2RemoteSetup:
             raw_frames.append(raw)
             # track sensor saturation status per wavelength step
             overflow_flags.append(bool(step.get("overflow", False)))
-            processed_frames.append(
-                self._process_frame(raw, background, processing),
-            )
+            processed = self._process_frame(raw, background, processing)
+            processed_frames.append(processed)
+            if preview is not None:
+                elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+                still_open = preview.update(
+                    processed,
+                    status=f"{wavelength:.3f} nm",
+                    overflow=bool(step.get("overflow", False)),
+                    grab_latency_ms=elapsed_ms,
+                )
+                if not still_open:
+                    preview.close()
+                    preview = None
 
         cube = np.stack(processed_frames, axis=0)
+        if preview is not None:
+            preview.close()
         metadata = {
             "scan": asdict(scan),
             "processing": asdict(processing),
