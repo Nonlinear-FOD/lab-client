@@ -119,46 +119,9 @@ class LabOverviewClient:
         resp = self._perform_request("GET", url)
         return self._json_or_raise(resp)
 
-    # ------------------------------------------------------------------
-    # Server + docs controls
-    # ------------------------------------------------------------------
-    def update_server_repo(self) -> dict[str, Any]:
-        """Run `git pull --ff-only` in the lab-server repository via `/system/update`."""
-        url = f"{self.base_url}/system/update"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def docs_status(self) -> dict[str, Any]:
-        """Return whether the lab-client docs sidecar is running."""
-        url = f"{self.base_url}/client-docs/status"
-        resp = self._perform_request("GET", url)
-        return self._json_or_raise(resp)
-
-    def start_docs(self) -> dict[str, Any]:
-        """Start the lab-client docs server."""
-        url = f"{self.base_url}/client-docs/start"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def stop_docs(self) -> dict[str, Any]:
-        """Stop the lab-client docs server."""
-        url = f"{self.base_url}/client-docs/stop"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def restart_docs(self) -> dict[str, Any]:
-        """Restart the lab-client docs server."""
-        url = f"{self.base_url}/client-docs/restart"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def update_docs_repo(self) -> dict[str, Any]:
-        """Pull the lab-client repository used for docs hosting."""
-        url = f"{self.base_url}/client-docs/update"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def _perform_request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+    def _perform_request(
+        self, method: str, url: str, **kwargs: Any
+    ) -> requests.Response:
         base_payload = dict(kwargs)
         timeout = base_payload.pop("timeout", None)
         attempts = 0
@@ -173,14 +136,80 @@ class LabOverviewClient:
                     **payload,
                 )
             except requests.exceptions.RequestException as exc:
-                raise ConnectionError(f"Could not reach {self.base_url}: {exc}") from exc
+                raise ConnectionError(
+                    f"Could not reach {self.base_url}: {exc}"
+                ) from exc
 
-            if (
-                resp.status_code == 401
-                and self._auth
-                and attempts == 0
-            ):
+            if resp.status_code == 401 and self._auth and attempts == 0:
                 self._auth.reset_session()
                 attempts += 1
                 continue
             return resp
+
+
+class LabSystemClient:
+    """Tiny helper focused on system-maintenance endpoints (/system/update and /client-docs/*).
+
+    Accepts either a pre-configured :class:`LabOverviewClient` (via ``overview_client``)
+    or the same constructor arguments so it can manage its own instance.
+    """
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        user: str | None = None,
+        auth: LabAuthManager | None = None,
+        token_path: str | Path | None = None,
+        interactive_auth: bool = True,
+    ) -> None:
+        if base_url is None:
+            raise ValueError(
+                "base_url is required when overview_client is not provided"
+            )
+        self._client = LabOverviewClient(
+            base_url,
+            user=user,
+            auth=auth,
+            token_path=token_path,
+            interactive_auth=interactive_auth,
+        )
+
+    @property
+    def base_url(self) -> str:
+        return self._client.base_url
+
+    def update_server_repo(self) -> dict[str, Any]:
+        """Run `git pull --ff-only` in the lab-server repository via `/system/update`."""
+        url = f"{self.base_url}/system/update"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def docs_status(self) -> dict[str, Any]:
+        """Return whether the lab-client docs sidecar is running."""
+        url = f"{self.base_url}/client-docs/status"
+        resp = self._client._perform_request("GET", url)
+        return self._client._json_or_raise(resp)
+
+    def start_docs(self) -> dict[str, Any]:
+        """Start the lab-client docs server."""
+        url = f"{self.base_url}/client-docs/start"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def stop_docs(self) -> dict[str, Any]:
+        """Stop the lab-client docs server."""
+        url = f"{self.base_url}/client-docs/stop"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def restart_docs(self) -> dict[str, Any]:
+        """Restart the lab-client docs server."""
+        url = f"{self.base_url}/client-docs/restart"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def update_docs_repo(self) -> dict[str, Any]:
+        """Pull the lab-client repository used for docs hosting."""
+        url = f"{self.base_url}/client-docs/update"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
