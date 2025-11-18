@@ -27,35 +27,6 @@ def ensure_uv() -> str:
     return uv
 
 
-def _determine_repo_root() -> Path:
-    """Return the lab-client root directory or instruct the user to set it."""
-    if HARDCODED_REPO_ROOT == "__REPO_ROOT__":
-        raise RuntimeError(
-            "HARDCODED_REPO_ROOT still contains the placeholder path.\n"
-            "Edit update_venv.py and set HARDCODED_REPO_ROOT to the absolute "
-            "path of your lab-client repo (e.g. /home/user/remote_lab_control/lab-client).",
-        )
-    root = Path(HARDCODED_REPO_ROOT)
-    if not root.is_dir():
-        raise RuntimeError(
-            f"Configured HARDCODED_REPO_ROOT '{root}' does not exist. "
-            "Update the path to point at your lab-client checkout.",
-        )
-    return root
-
-
-def _git_pull(repo_root: Path) -> None:
-    """Fast-forward the lab-client repo before syncing dependencies."""
-    try:
-        run(["git", "-C", str(repo_root), "pull", "--ff-only"])
-    except subprocess.CalledProcessError as exc:
-        print(
-            f"WARNING: git pull failed for {repo_root} (exit code {exc.returncode}). "
-            "Dependencies will still be synced against the local checkout.",
-            file=sys.stderr,
-        )
-
-
 def main() -> int:
     # Run from the project directory that contains the .venv
     project = Path.cwd()
@@ -68,11 +39,12 @@ def main() -> int:
         )
         return 2
 
-    # Resolve the lab-client repo root (hard-coded during setup if available)
-    try:
-        repo_root = _determine_repo_root()
-    except RuntimeError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+    repo_root = Path(HARDCODED_REPO_ROOT)
+    if not repo_root.is_dir():
+        print(
+            f"ERROR: Configured HARDCODED_REPO_ROOT '{repo_root}' does not exist.",
+            file=sys.stderr,
+        )
         return 3
     reqs = repo_root / "requirements.runtime.txt"
     if not reqs.exists():
@@ -82,7 +54,14 @@ def main() -> int:
     uv = ensure_uv()
 
     print(f"Pulling latest changes in {repo_root} …")
-    _git_pull(repo_root)
+    try:
+        run(["git", "-C", str(repo_root), "pull", "--ff-only"])
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"WARNING: git pull failed for {repo_root} (exit code {exc.returncode}). "
+            "Continuing with local checkout.",
+            file=sys.stderr,
+        )
 
     print(f"Syncing venv packages from {reqs} …")
     # Use sync so removed packages are also uninstalled
