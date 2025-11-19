@@ -27,6 +27,7 @@ cam.close()
 ## Common Operations
 
 - `grab_frame(averages=N, window=..., output_pixels=M)` — returns `(frame, overflow)` so you can react to uc480 saturation immediately.
+- `configure_roi(CameraROI(...))` — push a hardware ROI (AOI) change at runtime or reset to the default sensor window via `native=True`.
 - `shape` — fetch the configured AOI dimensions for downstream processing.
 - `max_signal` — use to guard against saturation (255 for Mono8, 65535 for Mono16).
 - `close()` — shuts down the uc480 driver and releases the server-side instance.
@@ -35,6 +36,7 @@ cam.close()
 
 - The server must run on Windows with the Thorlabs/IDS uc480 `.NET` SDK installed; the driver loads `uc480DotNet.dll` from `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\Develop\DotNet`.
 - AOI and pixel format defaults match the legacy `cam_control.py` script but can be overridden in the server config before connecting.
+- Add `native_shape` to the server config (e.g. `[1280, 1024]` for current units) so both ROI validation and `native=True` resets use the correct sensor bounds.
 - This client mirrors the API of the sidecar cameras so S2 tooling can swap between `"thorlabs"`, `"chameleon"`, `"spiricon"`, and `"bobcat"` kinds.
 
 ## API Reference

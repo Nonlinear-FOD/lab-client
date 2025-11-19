@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Mapping
 
 import numpy as np
 
 from clients.base_client import LabDeviceClient
-from clients.camera_models import CameraWindow
+from clients.camera_models import CameraROI, CameraWindow, build_roi_payload
 
 
 class ThorlabsCameraClient(LabDeviceClient):
@@ -17,20 +17,23 @@ class ThorlabsCameraClient(LabDeviceClient):
         device_name: str,
         user: str | None = None,
         debug: bool = False,
+        roi: CameraROI | Mapping[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(base_url, device_name, user=user, debug=debug)
-        self._initialize_device(kwargs)
+        init_payload = dict(kwargs)
+        init_payload.update(build_roi_payload(roi))
+        self._initialize_device(init_payload)
 
     def grab_frame(
         self,
         averages: int = 1,
         dtype: np.dtype | None = None,
-        window: CameraWindow | Dict[str, int] | None = None,
+        window: CameraWindow | dict[str, int] | None = None,
         output_pixels: int | None = None,
-    ) -> Tuple[np.ndarray, bool]:
+    ) -> tuple[np.ndarray, bool]:
         """Capture frame(s) plus overflow flag with optional averaging/cropping/binning."""
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
         if window:
@@ -49,8 +52,36 @@ class ThorlabsCameraClient(LabDeviceClient):
         overflow = bool(result.get("overflow", False))
         return array, overflow
 
+    def configure_roi(
+        self,
+        roi: CameraROI | Mapping[str, Any] | None = None,
+        **overrides: Any,
+    ) -> dict[str, int]:
+        """
+        Push a new hardware ROI to the uc480 driver.
+
+        Args:
+            roi: Optional :class:`CameraROI` definition.
+            **overrides: Individual ROI fields (width/height/offset_x/offset_y/native).
+
+        Returns:
+            Dict containing the applied ``offset_x/offset_y/width/height``.
+        """
+        payload = build_roi_payload(roi, overrides)
+        if not payload:
+            raise ValueError("configure_roi requires at least one ROI parameter")
+        result = self.call("configure_roi", **payload)
+        if not isinstance(result, dict):
+            raise RuntimeError("Server did not return ROI payload")
+        return {
+            "offset_x": int(result["offset_x"]),
+            "offset_y": int(result["offset_y"]),
+            "width": int(result["width"]),
+            "height": int(result["height"]),
+        }
+
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         """Return the current frame shape."""
         val = self.get_property("shape")
         if isinstance(val, (list, tuple)) and len(val) == 2:

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Mapping
 
 import numpy as np
 
 from clients.base_client import LabDeviceClient
-from clients.camera_models import CameraWindow, PyCapture2CameraSettings
+from clients.camera_models import (
+    CameraROI,
+    CameraWindow,
+    PyCapture2CameraSettings,
+    build_roi_payload,
+)
 
 
 class PyCapture2Client(LabDeviceClient):
@@ -48,9 +53,9 @@ class PyCapture2Client(LabDeviceClient):
         self,
         settings: PyCapture2CameraSettings | None = None,
         **overrides: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Connect (or reconnect) the camera with explicit settings."""
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if self._camera_kind:
             payload["camera_kind"] = self._camera_kind
         if settings is not None:
@@ -63,11 +68,11 @@ class PyCapture2Client(LabDeviceClient):
             return self._call_sidecar_dict("connect_sidecar")
         return self._call_sidecar_dict("connect_sidecar", **payload)
 
-    def start_capture(self) -> Dict[str, Any]:
+    def start_capture(self) -> dict[str, Any]:
         """Begin streaming frames on the remote sidecar."""
         return self._call_sidecar_dict("start_capture")
 
-    def stop_capture(self) -> Dict[str, Any]:
+    def stop_capture(self) -> dict[str, Any]:
         """Stop streaming frames on the remote sidecar."""
         return self._call_sidecar_dict("stop_capture")
 
@@ -75,11 +80,11 @@ class PyCapture2Client(LabDeviceClient):
         self,
         averages: int = 1,
         dtype: np.dtype | None = None,
-        window: CameraWindow | Dict[str, int] | None = None,
+        window: CameraWindow | dict[str, int] | None = None,
         output_pixels: int | None = None,
-    ) -> Tuple[np.ndarray, bool]:
+    ) -> tuple[np.ndarray, bool]:
         """Capture a frame with optional averaging/cropping/binning + overflow flag."""
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if averages and int(averages) > 1:
             payload["averages"] = int(averages)
         if window:
@@ -109,7 +114,26 @@ class PyCapture2Client(LabDeviceClient):
         overflow = bool(overflow_flag)
         return array, overflow
 
-    def disconnect_camera(self) -> Dict[str, Any]:
+    def configure_roi(
+        self,
+        roi: CameraROI | Mapping[str, Any] | None = None,
+        **overrides: Any,
+    ) -> dict[str, int]:
+        """Update the Format7 ROI (width/height/offsets) at runtime."""
+        payload = build_roi_payload(roi, overrides)
+        if not payload:
+            raise ValueError("configure_roi requires at least one ROI parameter")
+        result = self.call("configure_roi", **payload)
+        if not isinstance(result, dict):
+            raise RuntimeError("Sidecar did not return ROI payload")
+        return {
+            "offset_x": int(result["offset_x"]),
+            "offset_y": int(result["offset_y"]),
+            "width": int(result["width"]),
+            "height": int(result["height"]),
+        }
+
+    def disconnect_camera(self) -> dict[str, Any]:
         """Disconnect the camera sidecar."""
         return self._call_sidecar_dict("disconnect_sidecar")
 
@@ -135,7 +159,7 @@ class PyCapture2Client(LabDeviceClient):
         finally:
             self.disconnect()
 
-    def _call_sidecar_dict(self, method: str, **kwargs: Any) -> Dict[str, Any]:
+    def _call_sidecar_dict(self, method: str, **kwargs: Any) -> dict[str, Any]:
         """Invoke a sidecar method and ensure a mapping is returned."""
         result = self.call(method, **kwargs)
         if not isinstance(result, dict):

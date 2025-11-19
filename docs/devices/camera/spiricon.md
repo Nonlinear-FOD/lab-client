@@ -31,6 +31,7 @@ cam.close()
 ## Common Operations
 
 - `connect_camera(settings=...)` — push Format7 ROI, pixel format, serial binding, or auto-start options.
+- `configure_roi(CameraROI(...))` — live-update the Format7 ROI or reset to the native full-frame window.
 - `start_capture()` / `stop_capture()` — mirror the PyCapture2 streaming calls.
 - `grab_frame(averages=N, window=..., output_pixels=M)` — request raw or server-binned frames; returns `(frame, overflow)` to reflect hardware saturation.
 - `max_signal` — defaults to 65 535 digital counts for 16-bit operation but can be overridden per setup.
@@ -39,6 +40,7 @@ cam.close()
 
 - The sidecar runs inside a Python 3.6 venv with PyCapture2 installed; verify the `.venv` exists on the Windows host before launching the main server.
 - `window`/`output_pixels` arguments only apply when the server proxy exposes cropping/binning; otherwise crop locally on the returned NumPy arrays.
+- Provide `native_shape` (width, height) in the server config if the default Format7 bounds differ from your hardware so that ROI validation and `native=True` resets have accurate limits.
 - Always call `disconnect_camera()` (or `close()`) to release the server-side lock so other users can connect.
 
 ## API Reference
