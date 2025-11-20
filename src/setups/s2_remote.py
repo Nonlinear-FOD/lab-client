@@ -163,8 +163,7 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"
-    server_binning: bool = True
-    push_hardware_roi: bool = True
+    push_hardware_roi: bool = False
 
 
 @dataclass
@@ -349,6 +348,8 @@ class S2RemoteSetup:
         self._last_frame_shape: tuple[int, int] | None = None
         self._laser_output_enabled = False
         self._laser_warmup_s = 3.0
+        self._server_window: S2ImageWindow | None = None
+        self._server_window: S2ImageWindow | None = None
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
@@ -371,6 +372,8 @@ class S2RemoteSetup:
         self._active_hardware_shape = None
         self._last_frame_shape = None
         self._laser_output_enabled = False
+        self._server_window = None
+        self._server_window = None
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
@@ -474,14 +477,15 @@ class S2RemoteSetup:
         if client is None:
             return
         try:
-            shape = getattr(client, "shape")
+            shape = client.shape  # type: ignore[attr-defined]
         except Exception:
             return
-        try:
-            height, width = shape
-            self._active_hardware_shape = (int(height), int(width))
-        except Exception:
-            pass
+        if isinstance(shape, (tuple, list)) and len(shape) == 2:
+            try:
+                height, width = int(shape[0]), int(shape[1])
+            except Exception:
+                return
+            self._active_hardware_shape = (height, width)
 
     # ------------------------------------------------------------------ laser helpers
     def _connect_laser(self, kind: str) -> LaserProtocol:
@@ -603,9 +607,11 @@ class S2RemoteSetup:
 
         averages = max(1, int(frame_averages or 1))
         cam_kwargs = dict(frame_kwargs or {})
+        self._server_window = None
         if not cam_kwargs and processing is not None:
             cam_kwargs = self._camera_frame_kwargs(
                 processing,
+                window=None,
             )
 
         preview_overlay = processing.window if processing is not None else None
@@ -650,44 +656,42 @@ class S2RemoteSetup:
         self,
         processing: S2ProcessingConfig | None,
         *,
-        include_binning: bool = True,
+        window: S2ImageWindow | None = None,
     ) -> dict[str, Any]:
-        if processing is None or not processing.server_binning:
-            return {}
         payload: dict[str, Any] = {}
-        if include_binning:
+        if window is not None:
+            payload["window"] = window.to_crop_payload()
+        if processing is not None and processing.server_binning:
             payload["output_pixels"] = max(1, int(processing.output_pixels))
         return payload
 
-    def _preview_bin_factor(
-        self, processing: S2ProcessingConfig | None
+    def _bin_scale(
+        self,
+        processing: S2ProcessingConfig | None,
     ) -> tuple[float, float] | None:
         if (
             processing is None
             or not processing.server_binning
             or self._active_hardware_shape is None
-            or self._last_frame_shape is None
         ):
             return None
         height_raw, width_raw = self._active_hardware_shape
-        height_disp, width_disp = self._last_frame_shape
-        if height_disp == 0 or width_disp == 0:
-            return None
+        pixels = max(1, int(processing.output_pixels))
         return (
-            width_raw / float(width_disp),
-            height_raw / float(height_disp),
+            width_raw / float(pixels),
+            height_raw / float(pixels),
         )
 
     def _window_for_hardware(
         self,
         window: S2ImageWindow,
-        preview_scale: tuple[float, float] | None,
+        processing: S2ProcessingConfig | None,
     ) -> S2ImageWindow:
-        if preview_scale:
-            scale_x, scale_y = preview_scale
+        scale = self._bin_scale(processing)
+        scaled = window
+        if scale is not None:
+            scale_x, scale_y = scale
             scaled = window.scaled(scale_x, scale_y)
-        else:
-            scaled = window
         if self._active_hardware_shape is not None:
             return scaled.clamp(self._active_hardware_shape)
         return scaled
@@ -705,8 +709,6 @@ class S2RemoteSetup:
         frame_kwargs: dict[str, Any] | None = None,
     ) -> np.ndarray:
         """Average several frames to form a background image."""
-        import matplotlib.pyplot as plt
-
         samples = max(1, int(frames))
         captures: list[np.ndarray] = []
         kwargs = frame_kwargs or {}
@@ -718,8 +720,6 @@ class S2RemoteSetup:
             frame, overflow = self.grab_frame(averages=averages, **kwargs)
             self._warn_overflow(overflow, context="background")
             captures.append(frame)
-            plt.imshow(frame)
-            plt.show()
         if restore_laser:
             self._enable_laser_output()
         if len(captures) == 1:
@@ -741,14 +741,17 @@ class S2RemoteSetup:
 
         camera_averages = max(1, int(scan.averages))
         hardware_roi = bool(processing.push_hardware_roi)
-        bin_scale = self._preview_bin_factor(processing)
-        print(bin_scale)
+        server_window: S2ImageWindow | None = None
         if hardware_roi:
-            hardware_window = self._window_for_hardware(processing.window, bin_scale)
+            hardware_window = self._window_for_hardware(processing.window, processing)
             self.configure_camera_roi(hardware_window)
+        else:
+            server_window = self._window_for_hardware(processing.window, processing)
         frame_kwargs = self._camera_frame_kwargs(
             processing,
+            window=server_window,
         )
+        self._server_window = server_window
         background = self.capture_background(
             averages=camera_averages,
             frames=processing.background_frames,
@@ -802,6 +805,7 @@ class S2RemoteSetup:
         )
         if save_path is not None:
             result.save_npz(save_path)
+        self._server_window = None
         return result
 
     # ------------------------------------------------------------------ internal helpers
@@ -815,8 +819,7 @@ class S2RemoteSetup:
         working -= background
         working = self._apply_transform(working, processing.transform)
         region = working
-        hardware_roi = bool(processing.push_hardware_roi)
-        if not processing.server_binning and not hardware_roi:
+        if self._server_window is None and not processing.push_hardware_roi:
             region = self._crop_frame(region, processing.window)
         if not processing.server_binning:
             region = self._bin_frame(region, processing.output_pixels)
