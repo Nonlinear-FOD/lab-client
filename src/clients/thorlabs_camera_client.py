@@ -86,6 +86,16 @@ class ThorlabsCameraClient(LabDeviceClient):
         val = self.get_property("shape")
         if isinstance(val, (list, tuple)) and len(val) == 2:
             return int(val[0]), int(val[1])
+        if hasattr(val, "__len__") and len(val) == 2:
+            try:
+                return int(val[0]), int(val[1])
+            except Exception:
+                pass
+        if isinstance(val, dict):
+            height = val.get("height")
+            width = val.get("width")
+            if height is not None and width is not None:
+                return int(height), int(width)
         raise RuntimeError("Unexpected shape response from server")
 
     @property

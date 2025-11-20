@@ -45,7 +45,7 @@ setup = S2RemoteSetup(
 
 scan = S2ScanConfig(start_nm=1548.0, stop_nm=1552.0, step_nm=0.1, averages=5)
 processing = S2ProcessingConfig(
-    window=S2ImageWindow(0, 800, 0, 800),
+    window=S2ImageWindow(offset_x=0, offset_y=0, width=640, height=480),
     output_pixels=64,
     background_frames=5,
     server_binning=True,
@@ -61,6 +61,7 @@ print(result.relative_power_db)
 
 - **camera_kind** — choose `"chameleon"`, `"spiricon"`, `"bobcat"`, or `"thorlabs"`; the setup instantiates the matching client and auto-starts capture.
 - **DeviceEndpoint** — bundles base URL, device name, optional `user`, and client-specific kwargs (such as camera `settings`).
+- **S2ImageWindow** — specifies a hardware ROI via `(offset_x, offset_y, width, height)`. During scans the ROI is pushed down to the camera (unless you set `processing.push_hardware_roi=False`), dramatically reducing bandwidth and acquisition time. When server binning is enabled the coordinates you enter align with the binned preview, and the scan automatically rescales them back to raw sensor pixels before calling `configure_roi()`. Live preview overlays the selected window on top of the full frame so you can iterate interactively before committing.
 - **Server binning** — set `processing.server_binning=True` to offload cropping/binning to the camera proxy; otherwise frames are processed locally after download.
 - **Frame API** — both `S2RemoteSetup.grab_frame()` and `run_single_step()` return an `(array, overflow)` pair so callers can react to saturation immediately.
 - **Overflow tracking** — every `grab_frame` now returns `(frame, overflow)` and `run_single_step`/scan metadata record when the camera reports sensor saturation.
@@ -78,6 +79,8 @@ result = setup.run_processed_scan(scan, processing)
 ```
 
 Disable the auto-popup by setting `scan.live_preview=False` before calling `run_scan()`/`run_processed_scan()`.
+
+When you pass a `processing.window`, the preview outlines the proposed ROI on top of the full frame so you can revise offsets/sizes interactively. Once you run a scan (`processing.push_hardware_roi` defaults to `True`), that same ROI is pushed into the camera SDK so only the highlighted region is streamed over the network.
 
 ## Tips
 

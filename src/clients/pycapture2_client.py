@@ -45,6 +45,7 @@ class PyCapture2Client(LabDeviceClient):
         self._max_signal = (
             float(max_signal) if max_signal is not None else self._default_max_signal()
         )
+        self._shape: tuple[int, int] | None = None
         self._initialize_device(kwargs)
         if auto_connect:
             self.connect_camera(settings=settings, **kwargs)
@@ -65,8 +66,11 @@ class PyCapture2Client(LabDeviceClient):
                 continue
             payload[key] = value
         if not payload:
-            return self._call_sidecar_dict("connect_sidecar")
-        return self._call_sidecar_dict("connect_sidecar", **payload)
+            response = self._call_sidecar_dict("connect_sidecar")
+        else:
+            response = self._call_sidecar_dict("connect_sidecar", **payload)
+        self._maybe_update_shape(response)
+        return response
 
     def start_capture(self) -> dict[str, Any]:
         """Begin streaming frames on the remote sidecar."""
@@ -126,16 +130,20 @@ class PyCapture2Client(LabDeviceClient):
         result = self.call("configure_roi", **payload)
         if not isinstance(result, dict):
             raise RuntimeError("Sidecar did not return ROI payload")
-        return {
+        applied = {
             "offset_x": int(result["offset_x"]),
             "offset_y": int(result["offset_y"]),
             "width": int(result["width"]),
             "height": int(result["height"]),
         }
+        self._shape = (applied["height"], applied["width"])
+        return applied
 
     def disconnect_camera(self) -> dict[str, Any]:
         """Disconnect the camera sidecar."""
-        return self._call_sidecar_dict("disconnect_sidecar")
+        result = self._call_sidecar_dict("disconnect_sidecar")
+        self._shape = None
+        return result
 
     @property
     def max_signal(self) -> float:
@@ -152,6 +160,15 @@ class PyCapture2Client(LabDeviceClient):
         """Return the configured camera kind override, if any."""
         return self._camera_kind
 
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Return the current hardware frame shape (height, width)."""
+        if self._shape is None:
+            self._refresh_shape_from_status()
+        if self._shape is None:
+            raise RuntimeError("Camera has not reported a native frame shape")
+        return self._shape
+
     def close(self) -> None:
         """Disconnect the camera and underlying HTTP session."""
         try:
@@ -167,3 +184,29 @@ class PyCapture2Client(LabDeviceClient):
                 f"Sidecar method '{method}' returned unexpected payload {type(result)!r}"
             )
         return dict(result)
+
+    def _refresh_shape_from_status(self) -> None:
+        """Query the server status endpoint to recover the hardware shape."""
+        try:
+            status = self.call("status")
+        except Exception:
+            return
+        if isinstance(status, dict):
+            self._maybe_update_shape(status)
+
+    def _maybe_update_shape(self, payload: Mapping[str, Any]) -> None:
+        shape = payload.get("shape")
+        if isinstance(shape, (list, tuple)) and len(shape) == 2:
+            try:
+                height = int(shape[0])
+                width = int(shape[1])
+            except Exception:
+                pass
+            else:
+                self._shape = (height, width)
+                return
+        if isinstance(shape, dict):
+            height = shape.get("height")
+            width = shape.get("width")
+            if height is not None and width is not None:
+                self._shape = (int(height), int(width))
