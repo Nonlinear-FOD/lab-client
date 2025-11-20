@@ -163,7 +163,6 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"
-    push_hardware_roi: bool = False
 
 
 @dataclass
@@ -345,11 +344,8 @@ class S2RemoteSetup:
     def __post_init__(self):
         self.camera_kind = _get_camera_kind(self.camera.device_name)
         self._active_hardware_shape: tuple[int, int] | None = None
-        self._last_frame_shape: tuple[int, int] | None = None
         self._laser_output_enabled = False
-        self._laser_warmup_s = 3.0
-        self._server_window: S2ImageWindow | None = None
-        self._server_window: S2ImageWindow | None = None
+        self._laser_warmup_s = 5.0
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
@@ -370,10 +366,7 @@ class S2RemoteSetup:
         self._cam_client = None
         self._laser_client = None
         self._active_hardware_shape = None
-        self._last_frame_shape = None
         self._laser_output_enabled = False
-        self._server_window = None
-        self._server_window = None
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
@@ -389,6 +382,7 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "spiricon":
             cam_kwargs = dict(self.camera.init_kwargs)
@@ -402,6 +396,7 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "bobcat":
             cam_kwargs = dict(self.camera.init_kwargs)
@@ -415,15 +410,26 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "thorlabs":
-            return ThorlabsCameraClient(
+            cam = ThorlabsCameraClient(
                 self.camera.base_url,
                 self.camera.device_name,
                 user=self.camera.user,
                 **self.camera.init_kwargs,
             )
+            self._flush_camera(cam)
+            return cam
         raise ValueError(f"Unsupported camera kind '{kind}'")
+
+    def _flush_camera(self, client: CameraProtocol, frames: int = 5) -> None:
+        """Discard a few frames so sensors/sidecars can settle."""
+        try:
+            for _ in range(max(0, int(frames))):
+                client.grab_frame()
+        except Exception:
+            pass
 
     @staticmethod
     def _as_pycapture2_settings(
@@ -454,23 +460,7 @@ class S2RemoteSetup:
         if self._cam_client is None:
             raise RuntimeError("Camera client not connected")
         frame, overflow = self._cam_client.grab_frame(averages=averages, **kwargs)
-        frame_arr = np.asarray(frame)
-        self._last_frame_shape = tuple(frame_arr.shape[:2])
-        return frame_arr, overflow
-
-    def configure_camera_roi(self, window: S2ImageWindow) -> dict[str, int]:
-        """Push a hardware ROI to the connected camera."""
-        if self._cam_client is None:
-            raise RuntimeError("Camera client not connected")
-        configure = getattr(self._cam_client, "configure_roi", None)
-        if configure is None:
-            raise RuntimeError("Connected camera does not support hardware ROI")
-        result = configure(roi=window.to_camera_roi())
-        height = result.get("height")
-        width = result.get("width")
-        if height is not None and width is not None:
-            self._active_hardware_shape = (int(height), int(width))
-        return result
+        return np.asarray(frame), overflow
 
     def _refresh_hardware_shape(self) -> None:
         client = self._cam_client
@@ -607,12 +597,8 @@ class S2RemoteSetup:
 
         averages = max(1, int(frame_averages or 1))
         cam_kwargs = dict(frame_kwargs or {})
-        self._server_window = None
         if not cam_kwargs and processing is not None:
-            cam_kwargs = self._camera_frame_kwargs(
-                processing,
-                window=None,
-            )
+            cam_kwargs = {}
 
         preview_overlay = processing.window if processing is not None else None
         preview = _LivePreviewWindow(
@@ -661,40 +647,19 @@ class S2RemoteSetup:
         payload: dict[str, Any] = {}
         if window is not None:
             payload["window"] = window.to_crop_payload()
-        if processing is not None and processing.server_binning:
+        if processing is not None:
             payload["output_pixels"] = max(1, int(processing.output_pixels))
         return payload
 
-    def _bin_scale(
+    def _server_window_for(
         self,
         processing: S2ProcessingConfig | None,
-    ) -> tuple[float, float] | None:
-        if (
-            processing is None
-            or not processing.server_binning
-            or self._active_hardware_shape is None
-        ):
+    ) -> S2ImageWindow | None:
+        if processing is None:
             return None
-        height_raw, width_raw = self._active_hardware_shape
-        pixels = max(1, int(processing.output_pixels))
-        return (
-            width_raw / float(pixels),
-            height_raw / float(pixels),
-        )
-
-    def _window_for_hardware(
-        self,
-        window: S2ImageWindow,
-        processing: S2ProcessingConfig | None,
-    ) -> S2ImageWindow:
-        scale = self._bin_scale(processing)
-        scaled = window
-        if scale is not None:
-            scale_x, scale_y = scale
-            scaled = window.scaled(scale_x, scale_y)
-        if self._active_hardware_shape is not None:
-            return scaled.clamp(self._active_hardware_shape)
-        return scaled
+        if self._active_hardware_shape is None:
+            return processing.window
+        return processing.window.clamp(self._active_hardware_shape)
 
     def _warn_overflow(self, overflow: bool, context: str) -> None:
         if overflow:
@@ -740,18 +705,11 @@ class S2RemoteSetup:
             raise ValueError("Scan produced no wavelengths—check step size")
 
         camera_averages = max(1, int(scan.averages))
-        hardware_roi = bool(processing.push_hardware_roi)
-        server_window: S2ImageWindow | None = None
-        if hardware_roi:
-            hardware_window = self._window_for_hardware(processing.window, processing)
-            self.configure_camera_roi(hardware_window)
-        else:
-            server_window = self._window_for_hardware(processing.window, processing)
+        server_window = self._server_window_for(processing)
         frame_kwargs = self._camera_frame_kwargs(
             processing,
             window=server_window,
         )
-        self._server_window = server_window
         background = self.capture_background(
             averages=camera_averages,
             frames=processing.background_frames,
@@ -805,7 +763,12 @@ class S2RemoteSetup:
         )
         if save_path is not None:
             result.save_npz(save_path)
-        self._server_window = None
+        # Grab a full-frame image with no cropping so the camera view returns
+        # to its original window after the scan.
+        try:
+            self.grab_frame()
+        except Exception:
+            pass
         return result
 
     # ------------------------------------------------------------------ internal helpers
@@ -817,38 +780,10 @@ class S2RemoteSetup:
     ) -> np.ndarray:
         working = frame.astype(np.float64, copy=False)
         working -= background
-        working = self._apply_transform(working, processing.transform)
-        region = working
-        if self._server_window is None and not processing.push_hardware_roi:
-            region = self._crop_frame(region, processing.window)
-        if not processing.server_binning:
-            region = self._bin_frame(region, processing.output_pixels)
-        return region
+        return self._apply_transform(working, processing.transform)
 
     @staticmethod
     def _apply_transform(frame: np.ndarray, transform: str) -> np.ndarray:
         if transform.lower() == "scintacor":
             return np.sign(frame) * np.sqrt(np.abs(frame))
         return frame
-
-    @staticmethod
-    def _crop_frame(frame: np.ndarray, window: S2ImageWindow) -> np.ndarray:
-        y_slice, x_slice = window.as_slices(frame.shape)
-        return frame[y_slice, x_slice]
-
-    @staticmethod
-    def _bin_frame(region: np.ndarray, target_pixels: int) -> np.ndarray:
-        if target_pixels <= 0:
-            raise ValueError("output_pixels must be positive")
-        height, width = region.shape
-        if height < 2 or width < 2:
-            raise ValueError("ROI is too small to bin")
-        span = min(height, width)
-        bin_size = max(1, round(span / target_pixels))
-        rows = height // bin_size
-        cols = width // bin_size
-        trimmed = region[: rows * bin_size, : cols * bin_size]
-        if trimmed.size == 0:
-            raise ValueError("Binning trimmed the entire frame—adjust ROI or pixels")
-        reshaped = trimmed.reshape(rows, bin_size, cols, bin_size)
-        return reshaped.mean(axis=(1, 3))
