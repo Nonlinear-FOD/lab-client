@@ -17,70 +17,50 @@ from setups.s2_remote import (
     S2ProcessingConfig,
 )
 
-camera_server_url = "http://127.0.0.1:5000"
-laser_server_url = "http://127.0.0.1:5000"
+camera_server = "http://10.0.0.5:5000"
+laser_server = "http://10.0.0.6:5000"
 camera_name = "bobcat_camera"
 laser_name = "ando_laser_1"
 user = "alice"
-laser_init_kwargs = {"target_wavelength": 1550, "power": 0, "GPIB_bus": 0}
+laser_kwargs = {"target_wavelength": 1550, "power": 0, "GPIB_bus": 0}
 
-camera = DeviceEndpoint(
-    base_url=camera_server_url,
-    device_name=camera_name,
-    user=user,
-    init_kwargs={"settings": {"auto_start": True}},
-)
-laser = DeviceEndpoint(
-    base_url=laser_server_url,
-    device_name=laser_name,
-    user=user,
-    init_kwargs=laser_init_kwargs,
-)
-
-setup = S2RemoteSetup(
-    camera=camera,
-    laser=laser,
-    laser_kind="ando",
-)
-
+camera = DeviceEndpoint(camera_server, camera_name, user=user)
+laser = DeviceEndpoint(laser_server, laser_name, user=user, init_kwargs=laser_kwargs)
+setup = S2RemoteSetup(camera=camera, laser=laser, laser_kind="ando")
+if not setup.is_connected:
+    setup.connect()
+#%%
 scan = S2ScanConfig(start_nm=1548.0, stop_nm=1552.0, step_nm=0.1, averages=5)
+window = S2ImageWindow(offset_x=60, offset_y=80, width=220, height=220)
 processing = S2ProcessingConfig(
-    window=S2ImageWindow(offset_x=0, offset_y=0, width=640, height=480),
+    window=window,
     output_pixels=64,
     background_frames=5,
-    server_binning=True,
+    transform="linear",
 )
+run_measurement = False  # flip to True once the rectangle looks good
+if not run_measurement:
+    setup.live_preview(processing=processing, frame_averages=scan.averages)
+else:
+    result = setup.run_processed_scan(scan, processing, save_path="scan_cube.npz")
+    setup.disconnect()
+    print(f"{result.cube.shape[0]} steps captured into {result.cube.shape[1:]} bins")
 
-setup.connect()
-result = setup.run_processed_scan(scan, processing, save_path="scan_cube.npz")
-setup.disconnect()
-print(result.relative_power_db)
 ```
 
 ## Key Concepts
 
 - **camera_kind** — choose `"chameleon"`, `"spiricon"`, `"bobcat"`, or `"thorlabs"`; the setup instantiates the matching client and auto-starts capture.
 - **DeviceEndpoint** — bundles base URL, device name, optional `user`, and client-specific kwargs (such as camera `settings`).
-- **S2ImageWindow** — specifies a hardware ROI via `(offset_x, offset_y, width, height)`. During scans the ROI is pushed down to the camera (unless you set `processing.push_hardware_roi=False`), dramatically reducing bandwidth and acquisition time. When server binning is enabled the coordinates you enter align with the binned preview, and the scan automatically rescales them back to raw sensor pixels before calling `configure_roi()`. Live preview overlays the selected window on top of the full frame so you can iterate interactively before committing.
-- **Server binning** — set `processing.server_binning=True` to offload cropping/binning to the camera proxy; otherwise frames are processed locally after download.
+- **S2ImageWindow** — describes the rectangle you draw on the *full* live preview via `(offset_x, offset_y, width, height)`. The server crops exactly that region before it performs the requested `output_pixels` binning, so you get the bandwidth win without touching the hardware ROI.
+- **Server-side binning** — `processing.output_pixels` is always honored on the server; the client never performs local binning/cropping, which keeps transfers small even over high-latency links.
 - **Frame API** — both `S2RemoteSetup.grab_frame()` and `run_single_step()` return an `(array, overflow)` pair so callers can react to saturation immediately.
 - **Overflow tracking** — every `grab_frame` now returns `(frame, overflow)` and `run_single_step`/scan metadata record when the camera reports sensor saturation.
 - **Live preview flag** — `S2ScanConfig.live_preview` (defaults to `True`) opens a Matplotlib window while `run_scan()`/`run_processed_scan()` stream data so you can monitor max counts and catch overloads in real time. Set it to `False` for headless jobs.
 
 ## Live Preview
 
-`S2RemoteSetup.live_preview()` exposes the standalone live-view loop that used to live in `testing_client/test_s2.py`. It continuously pulls frames from the currently configured camera until you close the window or press `Ctrl+C`, which is handy for alignment and focus checks before starting an acquisition. The same viewer is launched automatically when `scan.live_preview=True`, updating with the latest frame as each wavelength finishes during a scan.
-
-```python
-setup.connect()
-setup.live_preview(processing=processing, frame_averages=5)
-# kick off a scan; the viewer stays in sync while frames arrive
-result = setup.run_processed_scan(scan, processing)
-```
-
-Disable the auto-popup by setting `scan.live_preview=False` before calling `run_scan()`/`run_processed_scan()`.
-
-When you pass a `processing.window`, the preview outlines the proposed ROI on top of the full frame so you can revise offsets/sizes interactively. Once you run a scan (`processing.push_hardware_roi` defaults to `True`), that same ROI is pushed into the camera SDK so only the highlighted region is streamed over the network.
+`S2RemoteSetup.live_preview()` streams the raw frame until you close the Matplotlib window or press `Ctrl+C`. The rectangle from `processing.window` is drawn on top, so you can tweak offsets and rerun the preview as many times as you like without reconnecting. Once you’re happy, simply set `run_measurement = True` (or call `run_processed_scan` directly) and reuse the same `processing` object—the server will crop/bin that exact region before sending frames back. There’s no prompt inside the loop; closing the figure returns you to the script immediately.
 
 ## Tips
 

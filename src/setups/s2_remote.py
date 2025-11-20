@@ -340,6 +340,7 @@ class S2RemoteSetup:
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
+    _connected: bool = False
 
     def __post_init__(self):
         self.camera_kind = _get_camera_kind(self.camera.device_name)
@@ -350,10 +351,16 @@ class S2RemoteSetup:
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
         """Instantiate all configured clients."""
-        self._cam_client = self._connect_camera(self.camera_kind)
-        self._laser_client = self._connect_laser(self.laser_kind)
-        self._enable_laser_output()
+        if self._cam_client is None:
+            self._cam_client = self._connect_camera(self.camera_kind)
+        if self._laser_client is None:
+            self._laser_client = self._connect_laser(self.laser_kind)
+        if not self._laser_output_enabled:
+            self._enable_laser_output()
         self._refresh_hardware_shape()
+        self._connected = (
+            self._cam_client is not None and self._laser_client is not None
+        )
 
     def disconnect(self) -> None:
         """Close all live clients."""
@@ -367,6 +374,11 @@ class S2RemoteSetup:
         self._laser_client = None
         self._active_hardware_shape = None
         self._laser_output_enabled = False
+        self._connected = False
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
