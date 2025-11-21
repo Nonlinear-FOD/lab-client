@@ -30,21 +30,30 @@ setup = S2RemoteSetup(camera=camera, laser=laser, laser_kind="ando")
 if not setup.is_connected:
     setup.connect()
 #%%
+out_pixels = 64
+bg_frames = 5
 scan = S2ScanConfig(start_nm=1548.0, stop_nm=1552.0, step_nm=0.1, averages=5)
 window = S2ImageWindow(offset_x=60, offset_y=80, width=220, height=220)
 processing = S2ProcessingConfig(
     window=window,
-    output_pixels=64,
-    background_frames=5,
+    output_pixels=out_pixels,
+    background_frames=bg_frames,
     transform="linear",
 )
-run_measurement = False  # flip to True once the rectangle looks good
 if not run_measurement:
-    setup.live_preview(processing=processing, frame_averages=scan.averages)
-else:
+    window_updated = setup.live_preview(processing=processing, frame_averages=1)
+elif run_measurement:
+    if window_updated is not None:  # pyright: ignore[reportUndefinedVariable]
+        processing = S2ProcessingConfig(
+            window=window_updated,  # pyright: ignore[reportUndefinedVariable]
+            output_pixels=out_pixels,
+            background_frames=bg_frames,
+        )
     result = setup.run_processed_scan(scan, processing, save_path="scan_cube.npz")
     setup.disconnect()
+    connected = False
     print(f"{result.cube.shape[0]} steps captured into {result.cube.shape[1:]} bins")
+
 
 ```
 

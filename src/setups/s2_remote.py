@@ -18,7 +18,6 @@ import numpy as np
 
 from clients.camera_models import (
     BobcatCameraSettings,
-    CameraROI,
     PyCapture2CameraSettings,
 )
 from clients.chameleon_client import ChameleonClient
@@ -92,6 +91,18 @@ class S2ScanConfig:
             yield self.start_nm + idx * self.step_nm
 
 
+def center_of_mass(frame: np.ndarray) -> tuple[int, int]:
+    f = np.asarray(frame, dtype=float)
+    total = f.sum()
+    y = np.arange(f.shape[0])
+    x = np.arange(f.shape[1])
+    cy = np.dot(f.sum(axis=1), y) / total
+    cx = np.dot(f.sum(axis=0), x) / total
+    cx_i = int(np.rint(cx))
+    cy_i = int(np.rint(cy))
+    return cx_i, cy_i
+
+
 @dataclass(slots=True)
 class S2ImageWindow:
     """Rectangular ROI expressed via offset + size."""
@@ -100,6 +111,26 @@ class S2ImageWindow:
     offset_y: int
     width: int
     height: int
+
+    @classmethod
+    def from_center(
+        cls,
+        center: tuple[int, int],
+        width: int,
+        height: int,
+        add_offset_x: int = 0,
+        add_offset_y: int = 0,
+    ) -> "S2ImageWindow":
+        cx = center[0] + add_offset_x
+        cy = center[1] + add_offset_y
+        half_w = width // 2
+        half_h = height // 2
+        return cls(cx - half_w, cy - half_h, width, height)
+
+    def recentered(self, center: tuple[int, int]) -> "S2ImageWindow":
+        return type(self).from_center(
+            center, self.width, self.height, self.offset_x, self.offset_y
+        )
 
     @property
     def x_end(self) -> int:
@@ -126,14 +157,6 @@ class S2ImageWindow:
         y0 = clamped.offset_y
         y1 = clamped.offset_y + clamped.height
         return slice(y0, y1), slice(x0, x1)
-
-    def to_camera_roi(self) -> CameraROI:
-        return CameraROI(
-            offset_x=int(self.offset_x),
-            offset_y=int(self.offset_y),
-            width=int(self.width),
-            height=int(self.height),
-        )
 
     def to_crop_payload(self) -> dict[str, int]:
         x0 = int(self.offset_x)
@@ -216,6 +239,7 @@ class _LivePreviewWindow:
         self._image = None
         self._overlay_window = overlay_window
         self._overlay_patch = None
+        self._centroid_marker = None
 
     def is_open(self) -> bool:
         if self._plt is None or self.fig is None:
@@ -246,6 +270,7 @@ class _LivePreviewWindow:
         status: str = "",
         overflow: bool = False,
         grab_latency_ms: float | None = None,
+        centroid: tuple[int, int] | None = None,
     ) -> bool:
         frame = np.asarray(frame)
         if frame.size == 0:
@@ -269,7 +294,7 @@ class _LivePreviewWindow:
         if not np.isfinite(vmax) or vmax <= vmin:
             vmax = vmin + 1e-6
         self._image.set_clim(vmin=vmin, vmax=vmax)
-        self._update_overlay(frame)
+        self._update_overlay(frame, centroid=centroid)
 
         now = time.perf_counter()
         self._timestamps.append(now)
@@ -295,7 +320,9 @@ class _LivePreviewWindow:
         self._plt.pause(0.001)
         return self.is_open()
 
-    def _update_overlay(self, frame: np.ndarray) -> None:
+    def _update_overlay(
+        self, frame: np.ndarray, centroid: tuple[int, int] | None = None
+    ) -> None:
         if self._overlay_window is None or self.ax is None:
             return
         window = self._overlay_window.clamp(frame.shape)
@@ -318,6 +345,18 @@ class _LivePreviewWindow:
             self._overlay_patch.set_xy((window.offset_x, window.offset_y))
             self._overlay_patch.set_width(window.width)
             self._overlay_patch.set_height(window.height)
+        if centroid is not None:
+            if self._centroid_marker is None:
+                (self._centroid_marker,) = self.ax.plot(
+                    centroid[0],
+                    centroid[1],
+                    marker="x",
+                    markersize=8,
+                    mew=2,
+                    color="lime",
+                )
+            else:
+                self._centroid_marker.set_data([centroid[0]], [centroid[1]])
 
     def close(self) -> None:
         if self._plt is not None and self.fig is not None and self.is_open():
@@ -600,7 +639,7 @@ class S2RemoteSetup:
         frame_averages: int | None = None,
         max_fps_samples: int = 25,
         cmap: str = "magma",
-    ) -> None:
+    ) -> S2ImageWindow | None:
         """Open a Matplotlib live view that streams frames until closed."""
         if not enable_preview:
             return
@@ -611,8 +650,19 @@ class S2RemoteSetup:
         cam_kwargs = dict(frame_kwargs or {})
         if not cam_kwargs and processing is not None:
             cam_kwargs = {}
+        if processing is not None:
+            base_offset_x = processing.window.offset_x
+            base_offset_y = processing.window.offset_y
+            w = processing.window.width
+            h = processing.window.height
+            preview_overlay = processing.window
+        else:
+            preview_overlay = None
+            base_offset_x = 0
+            base_offset_y = 0
+            w = 0
+            h = 0
 
-        preview_overlay = processing.window if processing is not None else None
         preview = _LivePreviewWindow(
             cmap=cmap,
             max_fps_samples=max_fps_samples,
@@ -620,6 +670,7 @@ class S2RemoteSetup:
         )
         frame_count = 0
         last_log = time.perf_counter()
+        centroid = None
 
         try:
             while True:
@@ -628,6 +679,19 @@ class S2RemoteSetup:
                 frame = np.asarray(frame)
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 frame_count += 1
+                if processing is not None:
+                    centroid = center_of_mass(frame)
+                    if frame_count == 1:
+                        # Only update the rectangle for first frame, otherwise run again
+                        win = S2ImageWindow.from_center(
+                            centroid,
+                            w,
+                            h,
+                            add_offset_x=base_offset_x,
+                            add_offset_y=base_offset_y,
+                        ).clamp(frame.shape)
+                        processing.window = win
+                        preview._overlay_window = win  # keep overlay in syncg
 
                 if overflow:
                     self._warn_overflow(True, context="live preview")
@@ -636,6 +700,7 @@ class S2RemoteSetup:
                     status="",
                     overflow=overflow,
                     grab_latency_ms=elapsed_ms,
+                    centroid=centroid if centroid else None,
                 ):
                     break
 
@@ -647,8 +712,10 @@ class S2RemoteSetup:
                     last_log = now
         except KeyboardInterrupt:
             print("Stopping live preview.")
+            return preview._overlay_window
         finally:
             preview.close()
+            return preview._overlay_window
 
     def _camera_frame_kwargs(
         self,
