@@ -18,6 +18,7 @@ class ChameleonClient(PyCapture2Client):
         settings: ChameleonCameraSettings | None = None,
         auto_connect: bool = True,
         max_signal: float | None = None,
+        camera_kind: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -27,7 +28,7 @@ class ChameleonClient(PyCapture2Client):
             debug=debug,
             settings=settings,
             auto_connect=auto_connect,
-            camera_kind="chameleon",
+            camera_kind=camera_kind,
             max_signal=max_signal,
             **kwargs,
         )

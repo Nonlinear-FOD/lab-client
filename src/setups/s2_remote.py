@@ -16,7 +16,10 @@ from typing import Any, Iterable, Protocol
 
 import numpy as np
 
-from clients.camera_models import BobcatCameraSettings, PyCapture2CameraSettings
+from clients.camera_models import (
+    BobcatCameraSettings,
+    PyCapture2CameraSettings,
+)
 from clients.chameleon_client import ChameleonClient
 from clients.laser_clients import (
     AgilentLaserClient,
@@ -52,9 +55,7 @@ class DeviceEndpoint:
 class CameraProtocol(Protocol):
     """Minimal surface expected from camera clients used in S2RemoteSetup."""
 
-    def grab_frame(
-        self, *args: Any, **kwargs: Any
-    ) -> tuple[np.ndarray, bool]: ...
+    def grab_frame(self, *args: Any, **kwargs: Any) -> tuple[np.ndarray, bool]: ...
 
     def close(self) -> None: ...
 
@@ -90,30 +91,91 @@ class S2ScanConfig:
             yield self.start_nm + idx * self.step_nm
 
 
-@dataclass
-class S2ImageWindow:
-    """Pixel region (x/y) to cut from the raw camera frame."""
+def center_of_mass(frame: np.ndarray) -> tuple[int, int]:
+    f = np.asarray(frame, dtype=float)
+    total = f.sum()
+    y = np.arange(f.shape[0])
+    x = np.arange(f.shape[1])
+    cy = np.dot(f.sum(axis=1), y) / total
+    cx = np.dot(f.sum(axis=0), x) / total
+    cx_i = int(np.rint(cx))
+    cy_i = int(np.rint(cy))
+    return cx_i, cy_i
 
-    x_start: int
-    x_end: int
-    y_start: int
-    y_end: int
+
+@dataclass(slots=True)
+class S2ImageWindow:
+    """Rectangular ROI expressed via offset + size."""
+
+    offset_x: int
+    offset_y: int
+    width: int
+    height: int
+
+    @classmethod
+    def from_center(
+        cls,
+        center: tuple[int, int],
+        width: int,
+        height: int,
+        add_offset_x: int = 0,
+        add_offset_y: int = 0,
+    ) -> "S2ImageWindow":
+        cx = center[0] + add_offset_x
+        cy = center[1] + add_offset_y
+        half_w = width // 2
+        half_h = height // 2
+        return cls(cx - half_w, cy - half_h, width, height)
+
+    def recentered(self, center: tuple[int, int]) -> "S2ImageWindow":
+        return type(self).from_center(
+            center, self.width, self.height, self.offset_x, self.offset_y
+        )
+
+    @property
+    def x_end(self) -> int:
+        return int(self.offset_x + self.width)
+
+    @property
+    def y_end(self) -> int:
+        return int(self.offset_y + self.height)
+
+    def clamp(self, frame_shape: tuple[int, int]) -> "S2ImageWindow":
+        height, width = frame_shape
+        offset_x = max(0, min(int(self.offset_x), width - 1))
+        offset_y = max(0, min(int(self.offset_y), height - 1))
+        width_val = max(1, int(self.width))
+        height_val = max(1, int(self.height))
+        width_val = min(width_val, max(1, width - offset_x))
+        height_val = min(height_val, max(1, height - offset_y))
+        return S2ImageWindow(offset_x, offset_y, width_val, height_val)
 
     def as_slices(self, frame_shape: tuple[int, int]) -> tuple[slice, slice]:
-        height, width = frame_shape
-        x0 = max(0, min(self.x_start, width - 1))
-        x1 = max(x0 + 1, min(self.x_end, width))
-        y0 = max(0, min(self.y_start, height - 1))
-        y1 = max(y0 + 1, min(self.y_end, height))
+        clamped = self.clamp(frame_shape)
+        x0 = clamped.offset_x
+        x1 = clamped.offset_x + clamped.width
+        y0 = clamped.offset_y
+        y1 = clamped.offset_y + clamped.height
         return slice(y0, y1), slice(x0, x1)
 
-    def to_payload(self) -> dict[str, int]:
+    def to_crop_payload(self) -> dict[str, int]:
+        x0 = int(self.offset_x)
+        y0 = int(self.offset_y)
         return {
-            "x_start": int(self.x_start),
-            "x_end": int(self.x_end),
-            "y_start": int(self.y_start),
-            "y_end": int(self.y_end),
+            "x_start": x0,
+            "x_end": x0 + int(self.width),
+            "y_start": y0,
+            "y_end": y0 + int(self.height),
         }
+
+    def scaled(self, scale_x: float, scale_y: float | None = None) -> "S2ImageWindow":
+        scale_y = scale_y if scale_y is not None else scale_x
+        return S2ImageWindow(
+            offset_x=int(round(self.offset_x * scale_x)),
+            offset_y=int(round(self.offset_y * scale_y)),
+            width=max(1, int(round(self.width * scale_x))),
+            height=max(1, int(round(self.height * scale_y))),
+        )
 
 
 @dataclass
@@ -124,7 +186,6 @@ class S2ProcessingConfig:
     output_pixels: int = 64
     background_frames: int = 1
     transform: str = "linear"
-    server_binning: bool = True
 
 
 @dataclass
@@ -162,7 +223,12 @@ class S2ScanResult:
 class _LivePreviewWindow:
     """Simple Matplotlib window that streams frames with status text."""
 
-    def __init__(self, cmap: str = "magma", max_fps_samples: int = 25):
+    def __init__(
+        self,
+        cmap: str = "magma",
+        max_fps_samples: int = 25,
+        overlay_window: S2ImageWindow | None = None,
+    ):
         self.cmap = cmap
         self.max_fps_samples = max(2, int(max_fps_samples))
         self._timestamps: deque[float] = deque(maxlen=self.max_fps_samples)
@@ -171,6 +237,9 @@ class _LivePreviewWindow:
         self.fig = None
         self.ax = None
         self._image = None
+        self._overlay_window = overlay_window
+        self._overlay_patch = None
+        self._centroid_marker = None
 
     def is_open(self) -> bool:
         if self._plt is None or self.fig is None:
@@ -192,6 +261,7 @@ class _LivePreviewWindow:
         plt.pause(0.001)
         self._timestamps.clear()
         self._frame_count = 0
+        self._update_overlay(frame)
 
     def update(
         self,
@@ -200,6 +270,7 @@ class _LivePreviewWindow:
         status: str = "",
         overflow: bool = False,
         grab_latency_ms: float | None = None,
+        centroid: tuple[int, int] | None = None,
     ) -> bool:
         frame = np.asarray(frame)
         if frame.size == 0:
@@ -223,6 +294,7 @@ class _LivePreviewWindow:
         if not np.isfinite(vmax) or vmax <= vmin:
             vmax = vmin + 1e-6
         self._image.set_clim(vmin=vmin, vmax=vmax)
+        self._update_overlay(frame, centroid=centroid)
 
         now = time.perf_counter()
         self._timestamps.append(now)
@@ -248,6 +320,44 @@ class _LivePreviewWindow:
         self._plt.pause(0.001)
         return self.is_open()
 
+    def _update_overlay(
+        self, frame: np.ndarray, centroid: tuple[int, int] | None = None
+    ) -> None:
+        if self._overlay_window is None or self.ax is None:
+            return
+        window = self._overlay_window.clamp(frame.shape)
+        try:
+            import matplotlib.patches as patches
+        except Exception:
+            return
+        if self._overlay_patch is None:
+            rect = patches.Rectangle(
+                (window.offset_x, window.offset_y),
+                window.width,
+                window.height,
+                linewidth=1.5,
+                edgecolor="cyan",
+                facecolor="none",
+            )
+            self.ax.add_patch(rect)
+            self._overlay_patch = rect
+        else:
+            self._overlay_patch.set_xy((window.offset_x, window.offset_y))
+            self._overlay_patch.set_width(window.width)
+            self._overlay_patch.set_height(window.height)
+        if centroid is not None:
+            if self._centroid_marker is None:
+                (self._centroid_marker,) = self.ax.plot(
+                    centroid[0],
+                    centroid[1],
+                    marker="x",
+                    markersize=8,
+                    mew=2,
+                    color="lime",
+                )
+            else:
+                self._centroid_marker.set_data([centroid[0]], [centroid[1]])
+
     def close(self) -> None:
         if self._plt is not None and self.fig is not None and self.is_open():
             self._plt.close(self.fig)
@@ -257,6 +367,7 @@ class _LivePreviewWindow:
         self._plt = None
         self._timestamps.clear()
         self._frame_count = 0
+        self._overlay_patch = None
 
 
 @dataclass
@@ -268,16 +379,27 @@ class S2RemoteSetup:
     laser_kind: str = "ando"  # or "agilent", "tisa"
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
+    _connected: bool = False
 
     def __post_init__(self):
         self.camera_kind = _get_camera_kind(self.camera.device_name)
+        self._active_hardware_shape: tuple[int, int] | None = None
+        self._laser_output_enabled = False
+        self._laser_warmup_s = 5.0
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
         """Instantiate all configured clients."""
-        self._cam_client = self._connect_camera(self.camera_kind)
-        self._laser_client = self._connect_laser(self.laser_kind)
-        self._enable_laser_output()
+        if self._cam_client is None:
+            self._cam_client = self._connect_camera(self.camera_kind)
+        if self._laser_client is None:
+            self._laser_client = self._connect_laser(self.laser_kind)
+        if not self._laser_output_enabled:
+            self._enable_laser_output()
+        self._refresh_hardware_shape()
+        self._connected = (
+            self._cam_client is not None and self._laser_client is not None
+        )
 
     def disconnect(self) -> None:
         """Close all live clients."""
@@ -287,6 +409,15 @@ class S2RemoteSetup:
                     client.close()
                 except Exception:
                     pass
+        self._cam_client = None
+        self._laser_client = None
+        self._active_hardware_shape = None
+        self._laser_output_enabled = False
+        self._connected = False
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
     # ------------------------------------------------------------------ camera helpers
     def _connect_camera(self, kind: str) -> CameraProtocol:
@@ -302,6 +433,7 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "spiricon":
             cam_kwargs = dict(self.camera.init_kwargs)
@@ -315,6 +447,7 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "bobcat":
             cam_kwargs = dict(self.camera.init_kwargs)
@@ -328,15 +461,26 @@ class S2RemoteSetup:
                 **cam_kwargs,
             )
             cam.start_capture()
+            self._flush_camera(cam)
             return cam
         if kind == "thorlabs":
-            return ThorlabsCameraClient(
+            cam = ThorlabsCameraClient(
                 self.camera.base_url,
                 self.camera.device_name,
                 user=self.camera.user,
                 **self.camera.init_kwargs,
             )
+            self._flush_camera(cam)
+            return cam
         raise ValueError(f"Unsupported camera kind '{kind}'")
+
+    def _flush_camera(self, client: CameraProtocol, frames: int = 5) -> None:
+        """Discard a few frames so sensors/sidecars can settle."""
+        try:
+            for _ in range(max(0, int(frames))):
+                client.grab_frame()
+        except Exception:
+            pass
 
     @staticmethod
     def _as_pycapture2_settings(
@@ -366,7 +510,23 @@ class S2RemoteSetup:
         """Fetch a frame from whichever camera is connected."""
         if self._cam_client is None:
             raise RuntimeError("Camera client not connected")
-        return self._cam_client.grab_frame(averages=averages, **kwargs)
+        frame, overflow = self._cam_client.grab_frame(averages=averages, **kwargs)
+        return np.asarray(frame), overflow
+
+    def _refresh_hardware_shape(self) -> None:
+        client = self._cam_client
+        if client is None:
+            return
+        try:
+            shape = client.shape  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if isinstance(shape, (tuple, list)) and len(shape) == 2:
+            try:
+                height, width = int(shape[0]), int(shape[1])
+            except Exception:
+                return
+            self._active_hardware_shape = (height, width)
 
     # ------------------------------------------------------------------ laser helpers
     def _connect_laser(self, kind: str) -> LaserProtocol:
@@ -389,9 +549,19 @@ class S2RemoteSetup:
         if self._laser_client is not None and hasattr(self._laser_client, "enable"):
             try:
                 self._laser_client.enable()  # type: ignore[attr-defined]
-                time.sleep(3)
+                time.sleep(self._laser_warmup_s)
             except Exception:
-                pass
+                return
+            self._laser_output_enabled = True
+
+    def _disable_laser_output(self) -> None:
+        if self._laser_client is not None and hasattr(self._laser_client, "disable"):
+            try:
+                self._laser_client.disable()  # type: ignore[attr-defined]
+                time.sleep(1)
+            except Exception:
+                return
+            self._laser_output_enabled = False
 
     def _set_laser_wavelength(self, wavelength_nm: float) -> None:
         laser = self._laser_client
@@ -469,7 +639,7 @@ class S2RemoteSetup:
         frame_averages: int | None = None,
         max_fps_samples: int = 25,
         cmap: str = "magma",
-    ) -> None:
+    ) -> S2ImageWindow | None:
         """Open a Matplotlib live view that streams frames until closed."""
         if not enable_preview:
             return
@@ -479,11 +649,28 @@ class S2RemoteSetup:
         averages = max(1, int(frame_averages or 1))
         cam_kwargs = dict(frame_kwargs or {})
         if not cam_kwargs and processing is not None:
-            cam_kwargs = self._camera_frame_kwargs(processing)
+            cam_kwargs = {}
+        if processing is not None:
+            base_offset_x = processing.window.offset_x
+            base_offset_y = processing.window.offset_y
+            w = processing.window.width
+            h = processing.window.height
+            preview_overlay = processing.window
+        else:
+            preview_overlay = None
+            base_offset_x = 0
+            base_offset_y = 0
+            w = 0
+            h = 0
 
-        preview = _LivePreviewWindow(cmap=cmap, max_fps_samples=max_fps_samples)
+        preview = _LivePreviewWindow(
+            cmap=cmap,
+            max_fps_samples=max_fps_samples,
+            overlay_window=preview_overlay,
+        )
         frame_count = 0
         last_log = time.perf_counter()
+        centroid = None
 
         try:
             while True:
@@ -492,6 +679,19 @@ class S2RemoteSetup:
                 frame = np.asarray(frame)
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 frame_count += 1
+                if processing is not None:
+                    centroid = center_of_mass(frame)
+                    if frame_count == 1:
+                        # Only update the rectangle for first frame, otherwise run again
+                        win = S2ImageWindow.from_center(
+                            centroid,
+                            w,
+                            h,
+                            add_offset_x=base_offset_x,
+                            add_offset_y=base_offset_y,
+                        ).clamp(frame.shape)
+                        processing.window = win
+                        preview._overlay_window = win  # keep overlay in syncg
 
                 if overflow:
                     self._warn_overflow(True, context="live preview")
@@ -500,6 +700,7 @@ class S2RemoteSetup:
                     status="",
                     overflow=overflow,
                     grab_latency_ms=elapsed_ms,
+                    centroid=centroid if centroid else None,
                 ):
                     break
 
@@ -511,18 +712,33 @@ class S2RemoteSetup:
                     last_log = now
         except KeyboardInterrupt:
             print("Stopping live preview.")
+            return preview._overlay_window
         finally:
             preview.close()
+            return preview._overlay_window
 
     def _camera_frame_kwargs(
         self,
         processing: S2ProcessingConfig | None,
+        *,
+        window: S2ImageWindow | None = None,
     ) -> dict[str, Any]:
-        if processing is None or not processing.server_binning:
-            return {}
-        roi = processing.window.to_payload()
-        output = max(1, int(processing.output_pixels))
-        return {"window": roi, "output_pixels": output}
+        payload: dict[str, Any] = {}
+        if window is not None:
+            payload["window"] = window.to_crop_payload()
+        if processing is not None:
+            payload["output_pixels"] = max(1, int(processing.output_pixels))
+        return payload
+
+    def _server_window_for(
+        self,
+        processing: S2ProcessingConfig | None,
+    ) -> S2ImageWindow | None:
+        if processing is None:
+            return None
+        if self._active_hardware_shape is None:
+            return processing.window
+        return processing.window.clamp(self._active_hardware_shape)
 
     def _warn_overflow(self, overflow: bool, context: str) -> None:
         if overflow:
@@ -540,10 +756,16 @@ class S2RemoteSetup:
         samples = max(1, int(frames))
         captures: list[np.ndarray] = []
         kwargs = frame_kwargs or {}
+        restore_laser = False
+        if self._laser_output_enabled:
+            self._disable_laser_output()
+            restore_laser = True
         for _ in range(samples):
             frame, overflow = self.grab_frame(averages=averages, **kwargs)
             self._warn_overflow(overflow, context="background")
             captures.append(frame)
+        if restore_laser:
+            self._enable_laser_output()
         if len(captures) == 1:
             return captures[0]
         return np.mean(captures, axis=0)
@@ -562,7 +784,11 @@ class S2RemoteSetup:
             raise ValueError("Scan produced no wavelengths—check step size")
 
         camera_averages = max(1, int(scan.averages))
-        frame_kwargs = self._camera_frame_kwargs(processing)
+        server_window = self._server_window_for(processing)
+        frame_kwargs = self._camera_frame_kwargs(
+            processing,
+            window=server_window,
+        )
         background = self.capture_background(
             averages=camera_averages,
             frames=processing.background_frames,
@@ -616,6 +842,12 @@ class S2RemoteSetup:
         )
         if save_path is not None:
             result.save_npz(save_path)
+        # Grab a full-frame image with no cropping so the camera view returns
+        # to its original window after the scan.
+        try:
+            self.grab_frame()
+        except Exception:
+            pass
         return result
 
     # ------------------------------------------------------------------ internal helpers
@@ -627,38 +859,10 @@ class S2RemoteSetup:
     ) -> np.ndarray:
         working = frame.astype(np.float64, copy=False)
         working -= background
-        working = self._apply_transform(working, processing.transform)
-        region = working
-        if not processing.server_binning:
-            region = self._crop_frame(region, processing.window)
-        if not processing.server_binning:
-            region = self._bin_frame(region, processing.output_pixels)
-        return region
+        return self._apply_transform(working, processing.transform)
 
     @staticmethod
     def _apply_transform(frame: np.ndarray, transform: str) -> np.ndarray:
         if transform.lower() == "scintacor":
             return np.sign(frame) * np.sqrt(np.abs(frame))
         return frame
-
-    @staticmethod
-    def _crop_frame(frame: np.ndarray, window: S2ImageWindow) -> np.ndarray:
-        y_slice, x_slice = window.as_slices(frame.shape)
-        return frame[y_slice, x_slice]
-
-    @staticmethod
-    def _bin_frame(region: np.ndarray, target_pixels: int) -> np.ndarray:
-        if target_pixels <= 0:
-            raise ValueError("output_pixels must be positive")
-        height, width = region.shape
-        if height < 2 or width < 2:
-            raise ValueError("ROI is too small to bin")
-        span = min(height, width)
-        bin_size = max(1, round(span / target_pixels))
-        rows = height // bin_size
-        cols = width // bin_size
-        trimmed = region[: rows * bin_size, : cols * bin_size]
-        if trimmed.size == 0:
-            raise ValueError("Binning trimmed the entire frame—adjust ROI or pixels")
-        reshaped = trimmed.reshape(rows, bin_size, cols, bin_size)
-        return reshaped.mean(axis=(1, 3))

@@ -1,7 +1,62 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict
+from typing import Any, Mapping
+
+
+@dataclass(slots=True)
+class CameraROI:
+    """Helper describing a rectangular ROI for on-device configuration."""
+
+    width: int | None = None
+    height: int | None = None
+    offset_x: int | None = None
+    offset_y: int | None = None
+    native: bool | None = None
+
+    def to_payload(self) -> dict[str, int | bool]:
+        """Return a JSON-friendly payload skipping ``None`` fields."""
+        payload: dict[str, int | bool] = {}
+        for key, value in asdict(self).items():
+            if value is None:
+                continue
+            if key == "native":
+                payload[key] = bool(value)
+            else:
+                payload[key] = int(value)
+        return payload
+
+
+ROI_FIELDS = ("width", "height", "offset_x", "offset_y", "native")
+
+
+def build_roi_payload(
+    roi: CameraROI | Mapping[str, Any] | None,
+    overrides: Mapping[str, Any] | None = None,
+) -> dict[str, int | bool]:
+    """Merge ROI dataclasses/mappings plus overrides into a JSON payload."""
+    payload: dict[str, int | bool] = {}
+    if roi is not None:
+        if isinstance(roi, CameraROI):
+            payload.update(roi.to_payload())
+        elif isinstance(roi, Mapping):
+            for key in ROI_FIELDS:
+                if key not in roi:
+                    continue
+                value = roi[key]
+                if value is None:
+                    continue
+                payload[key] = bool(value) if key == "native" else int(value)
+        else:
+            raise TypeError("ROI must be a CameraROI or mapping")
+    if overrides:
+        for key, value in overrides.items():
+            if key not in ROI_FIELDS:
+                raise ValueError(f"Unsupported ROI field '{key}'")
+            if value is None:
+                continue
+            payload[key] = bool(value) if key == "native" else int(value)
+    return payload
 
 
 @dataclass(slots=True)
@@ -23,10 +78,11 @@ class PyCapture2CameraSettings:
     mode: int | None = None
     flip_vertical: bool | None = None
     auto_start: bool | None = None
+    native: bool | None = None
 
-    def to_payload(self) -> Dict[str, Any]:
+    def to_payload(self) -> dict[str, Any]:
         """Convert the dataclass to a JSON-friendly dict."""
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         for field_name, value in asdict(self).items():
             if value is None:
                 continue
@@ -50,9 +106,14 @@ class BobcatCameraSettings:
     cooling_target_c: float | None = None
     timeout_ms: int | None = None
     auto_start: bool | None = None
+    width: int | None = None
+    height: int | None = None
+    offset_x: int | None = None
+    offset_y: int | None = None
+    native: bool | None = None
 
-    def to_payload(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {}
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
         for field_name, value in asdict(self).items():
             if value is None:
                 continue
@@ -69,7 +130,7 @@ class CameraWindow:
     y_start: int
     y_end: int
 
-    def to_payload(self) -> Dict[str, int]:
+    def to_payload(self) -> dict[str, int]:
         """Return a JSON-friendly dict for HTTP payloads."""
         return {
             "x_start": int(self.x_start),

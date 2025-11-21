@@ -38,6 +38,7 @@ cam.close()
 ## Common Operations
 
 - Use `BobcatCameraSettings` to override exposure, gain/offset, cooling target, or custom VIN path.
+- `configure_roi(CameraROI(...))` — program the CVB AOI at runtime (use `native=True` to revert to the full sensor window).
 - `grab_frame(averages=N, window=..., output_pixels=M)` returns `(frame, overflow)` so you can act immediately on sensor saturation that was detected server-side.
 - `max_signal` still reflects the 16‑bit ADC (35300 counts) in case you need to set thresholds client-side.
 

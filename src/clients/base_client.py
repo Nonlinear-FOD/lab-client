@@ -157,6 +157,8 @@ class LabDeviceClient:
         url = f"{self.device_url}/{name}"
         resp = self._perform_request("POST", url, json=kwargs or {})
         resp = self._json_or_raise(resp)
+        if "detail" in resp and "result" not in resp:
+            raise RuntimeError(str(resp["detail"]))
         result = resp.get("result")
         if isinstance(result, list):
             try:
