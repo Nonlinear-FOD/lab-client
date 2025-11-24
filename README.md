@@ -57,10 +57,10 @@ print("Laser wl:", laser.wavelength)
 print("OSA points:", len(osa.wavelengths))
 
 overview = LabOverviewClient(server, user=user)
-print(overview.sessions())      # see per-user workers
-overview.restart_session()      # restart your own worker if it wedges
-
 system = LabSystemClient(server, user=user)
+print(overview.devices())       # connection + lock summary
+print(system.sessions())        # see per-user workers
+system.restart_session()        # restart your own worker if it wedges
 system.docs_status()            # check if hosted docs are running
 ```
 

@@ -70,43 +70,6 @@ class LabOverviewClient:
         resp = self._perform_request("GET", url)
         return self._json_or_raise(resp)
 
-    # ------------------------------------------------------------------
-    # Session management helpers
-    # ------------------------------------------------------------------
-    def sessions(self) -> dict[str, Any]:
-        """Return metadata about all active per-user workers.
-
-        Returns:
-            JSON payload from `GET /sessions` (user -> port, started_at, last_seen, alive).
-        """
-        url = f"{self.base_url}/sessions"
-        resp = self._perform_request("GET", url)
-        return self._json_or_raise(resp)
-
-    def restart_session(self) -> dict[str, Any]:
-        """Restart the worker tied to the authenticated/current user."""
-        url = f"{self.base_url}/sessions/self/restart"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def shutdown_session(self) -> dict[str, Any]:
-        """Shut down the worker tied to the authenticated/current user."""
-        url = f"{self.base_url}/sessions/self/shutdown"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def restart_session_for(self, user: str) -> dict[str, Any]:
-        """Admin helper to restart another user's worker."""
-        url = f"{self.base_url}/sessions/{user}/restart"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
-    def shutdown_session_for(self, user: str) -> dict[str, Any]:
-        """Admin helper to shut down another user's worker."""
-        url = f"{self.base_url}/sessions/{user}/shutdown"
-        resp = self._perform_request("POST", url)
-        return self._json_or_raise(resp)
-
     def list_used_instruments(self) -> dict[str, Any]:
         """Return current locks: which user holds which device (if any)."""
         url = f"{self.base_url}/overview/locks"
@@ -148,7 +111,8 @@ class LabOverviewClient:
 
 
 class LabSystemClient:
-    """Tiny helper focused on system-maintenance endpoints (/system/update and /client-docs/*).
+    """Helper focused on system-maintenance endpoints (/system/update, /client-docs/*) and
+    session workers (list/restart/shutdown).
 
     Accepts either a pre-configured :class:`LabOverviewClient` (via ``overview_client``)
     or the same constructor arguments so it can manage its own instance.
@@ -177,6 +141,46 @@ class LabSystemClient:
     @property
     def base_url(self) -> str:
         return self._client.base_url
+
+    def sessions(self) -> dict[str, Any]:
+        """Return metadata about all active per-user workers.
+
+        Returns:
+            JSON payload from `GET /sessions` (user -> port, started_at, last_seen, alive).
+        """
+        url = f"{self.base_url}/sessions"
+        resp = self._client._perform_request("GET", url)
+        return self._client._json_or_raise(resp)
+
+    def restart_session(self) -> dict[str, Any]:
+        """Restart the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/restart"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def shutdown_session(self) -> dict[str, Any]:
+        """Shut down the worker tied to the authenticated/current user."""
+        url = f"{self.base_url}/sessions/self/shutdown"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def restart_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to restart another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/restart"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def shutdown_session_for(self, user: str) -> dict[str, Any]:
+        """Admin helper to shut down another user's worker."""
+        url = f"{self.base_url}/sessions/{user}/shutdown"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
+
+    def disconnect_user_instrument(self, user: str, instrument: str) -> dict[str, Any]:
+        """Admin helper to disconnect a specific instrument and release its lock for a user."""
+        url = f"{self.base_url}/sessions/{user}/devices/{instrument}/disconnect"
+        resp = self._client._perform_request("POST", url)
+        return self._client._json_or_raise(resp)
 
     def update_server_repo(self) -> dict[str, Any]:
         """Run `git pull --ff-only` in the lab-server repository via `/system/update`."""

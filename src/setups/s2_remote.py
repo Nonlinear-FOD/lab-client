@@ -8,6 +8,7 @@ plug in laser steps—so you can iterate quickly before porting the GUI.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
@@ -30,6 +31,8 @@ from clients.bobcat_client import BobcatClient
 from clients.spiricon_client import SpiriconClient
 from clients.thorlabs_camera_client import ThorlabsCameraClient
 
+
+logger = logging.getLogger(__name__)
 
 def _get_camera_kind(camera_name: str) -> str:
     if camera_name == "chameleon_scintacor" or camera_name == "chameleon_1mu":
@@ -377,6 +380,7 @@ class S2RemoteSetup:
     camera: DeviceEndpoint
     laser: DeviceEndpoint
     laser_kind: str = "ando"  # or "agilent", "tisa"
+    logger: logging.Logger = field(default=logger, repr=False)
     _cam_client: CameraProtocol | None = field(init=False, default=None)
     _laser_client: LaserProtocol | None = field(init=False, default=None)
     _connected: bool = False
@@ -386,10 +390,16 @@ class S2RemoteSetup:
         self._active_hardware_shape: tuple[int, int] | None = None
         self._laser_output_enabled = False
         self._laser_warmup_s = 5.0
+        self._log = self.logger
 
     # ------------------------------------------------------------------ connect/disconnect
     def connect(self) -> None:
         """Instantiate all configured clients."""
+        self._log.info(
+            "[S2] Connecting to camera=%s, laser=%s",
+            self.camera.device_name,
+            self.laser.device_name,
+        )
         if self._cam_client is None:
             self._cam_client = self._connect_camera(self.camera_kind)
         if self._laser_client is None:
@@ -403,6 +413,7 @@ class S2RemoteSetup:
 
     def disconnect(self) -> None:
         """Close all live clients."""
+        self._log.info("[S2] Disconnecting devices")
         for client in (self._cam_client, self._laser_client):
             if client is not None:
                 try:
@@ -476,6 +487,7 @@ class S2RemoteSetup:
 
     def _flush_camera(self, client: CameraProtocol, frames: int = 5) -> None:
         """Discard a few frames so sensors/sidecars can settle."""
+        self._log.info("[S2] Flushing camera (%s frames)", max(0, int(frames)))
         try:
             for _ in range(max(0, int(frames))):
                 client.grab_frame()
@@ -548,6 +560,9 @@ class S2RemoteSetup:
     def _enable_laser_output(self) -> None:
         if self._laser_client is not None and hasattr(self._laser_client, "enable"):
             try:
+                self._log.info(
+                    "[S2] Enabling laser output; warm-up %.1f s", self._laser_warmup_s
+                )
                 self._laser_client.enable()  # type: ignore[attr-defined]
                 time.sleep(self._laser_warmup_s)
             except Exception:
@@ -557,6 +572,7 @@ class S2RemoteSetup:
     def _disable_laser_output(self) -> None:
         if self._laser_client is not None and hasattr(self._laser_client, "disable"):
             try:
+                self._log.info("[S2] Disabling laser output")
                 self._laser_client.disable()  # type: ignore[attr-defined]
                 time.sleep(1)
             except Exception:
@@ -608,6 +624,7 @@ class S2RemoteSetup:
         results: list[dict[str, Any]] = []
         for wl in config.wavelengths():
             step_start = time.perf_counter()
+            self._log.info("[S2] Moving to %.3f nm", wl)
             result = self.run_single_step(
                 wl,
                 averages=config.averages,
@@ -646,6 +663,7 @@ class S2RemoteSetup:
         if self._cam_client is None:
             raise RuntimeError("Camera client not connected")
 
+        self._log.info("[S2] Starting live preview")
         averages = max(1, int(frame_averages or 1))
         cam_kwargs = dict(frame_kwargs or {})
         if not cam_kwargs and processing is not None:
@@ -715,6 +733,7 @@ class S2RemoteSetup:
             return preview._overlay_window
         finally:
             preview.close()
+            self._log.info("[S2] Live preview stopped")
             return preview._overlay_window
 
     def _camera_frame_kwargs(
@@ -754,6 +773,11 @@ class S2RemoteSetup:
     ) -> np.ndarray:
         """Average several frames to form a background image."""
         samples = max(1, int(frames))
+        self._log.info(
+            "[S2] Measuring background: frames=%s, averages=%s",
+            samples,
+            averages,
+        )
         captures: list[np.ndarray] = []
         kwargs = frame_kwargs or {}
         restore_laser = False
@@ -766,6 +790,7 @@ class S2RemoteSetup:
             captures.append(frame)
         if restore_laser:
             self._enable_laser_output()
+        self._log.info("[S2] Background measurement complete")
         if len(captures) == 1:
             return captures[0]
         return np.mean(captures, axis=0)
@@ -777,6 +802,13 @@ class S2RemoteSetup:
         save_path: str | Path | None = None,
     ) -> S2ScanResult:
         """Capture a full scan and return the processed (cropped/binned) cube."""
+        self._log.info(
+            "[S2] Starting processed scan: %s -> %s nm, step=%s, averages=%s",
+            scan.start_nm,
+            scan.stop_nm,
+            scan.step_nm,
+            scan.averages,
+        )
         if self.camera_kind == "chameleon":
             processing.transform = "scintacor"
         wavelengths = list(scan.wavelengths())
@@ -823,6 +855,11 @@ class S2RemoteSetup:
                 if not still_open:
                     preview.close()
                     preview = None
+            self._log.info(
+                "[S2] Captured %.3f nm (overflow=%s)",
+                wavelength,
+                bool(step.get("overflow", False)),
+            )
 
         cube = np.stack(processed_frames, axis=0)
         if preview is not None:
@@ -848,6 +885,7 @@ class S2RemoteSetup:
             self.grab_frame()
         except Exception:
             pass
+        self._log.info("[S2] Scan complete; %s steps", len(wavelengths))
         return result
 
     # ------------------------------------------------------------------ internal helpers
