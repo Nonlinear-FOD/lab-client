@@ -120,16 +120,12 @@ class LabSystemClient:
 
     def __init__(
         self,
-        base_url: str | None = None,
+        base_url: str,
         user: str | None = None,
         auth: LabAuthManager | None = None,
         token_path: str | Path | None = None,
         interactive_auth: bool = True,
     ) -> None:
-        if base_url is None:
-            raise ValueError(
-                "base_url is required when overview_client is not provided"
-            )
         self._client = LabOverviewClient(
             base_url,
             user=user,
