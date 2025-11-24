@@ -22,6 +22,16 @@ sys.update_server_repo()                      # git pull --ff-only on lab-server
 sys.restart_docs()                            # bounce the hosted lab-client docs
 print(sys.sessions())                         # per-user workers with ports + status
 sys.restart_session()                         # restart your own worker
+# Admin-only helpers:
+# sys.restart_session_for("bob")
+# sys.shutdown_session_for("bob")
+# sys.disconnect_user_instrument("bob", "osa_1")  # free a single device lock
+
+# Iterating quickly on server code for your own session:
+# - Make a change on the server (e.g., add device config/driver).
+# - sys.update_server_repo()          # pull the latest server code/config
+# - sys.shutdown_session()            # stop your worker
+# - Reconnect in your REPL            # a fresh worker loads the new code
 ```
 
 ## API Reference

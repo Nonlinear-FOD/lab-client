@@ -62,6 +62,10 @@ print(overview.devices())       # connection + lock summary
 print(system.sessions())        # see per-user workers
 system.restart_session()        # restart your own worker if it wedges
 system.docs_status()            # check if hosted docs are running
+# Admin helpers (require admin token):
+# system.restart_session_for("bob")
+# system.shutdown_session_for("bob")
+# system.disconnect_user_instrument("bob", "osa_1")
 ```
 
 Authentication & token storage
