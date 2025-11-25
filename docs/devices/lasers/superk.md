@@ -10,6 +10,8 @@ from clients.superk_client import SuperKCompactClient
 
 base = "http://127.0.0.1:5000"
 user = "alice"
+
+# auto_open=True (default) opens the COM port during connect
 laser = SuperKCompactClient(base, "nktp_superk_1", port=3, user=user)
 
 # Toggle emission
@@ -20,7 +22,11 @@ laser.emission = 0  # or use disable()
 laser.reprate = 10_000        # Hz
 laser.power_percentage = 50   # 0–100
 
-laser.close()
+# Manually control the port when auto_open=False
+laser.close()   # close the port on the server
+laser.open()    # reopen as needed
+
+laser.close()   # drop the server instance
 ```
 
 ## Notes

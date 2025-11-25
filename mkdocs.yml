@@ -39,6 +39,7 @@ nav:
           - Base & Mixins: devices/lasers/base.md
           - Ando: devices/lasers/ando.md
           - Agilent: devices/lasers/agilent.md
+          - NKTP Aeropulse FS20: devices/lasers/fs20.md
           - NKTP SuperK Compact: devices/lasers/superk.md
           - Ti:Sapphire: devices/lasers/tisa.md
           - Verdi: devices/verdi.md

@@ -19,11 +19,12 @@ class SuperKCompactClient(LabDeviceClient):
         base_url: str,
         device_name: str,
         port: int | str,
+        auto_open: bool = True,
         user: str | None = None,
         debug: bool = False,
     ):
         super().__init__(base_url, device_name, user=user, debug=debug)
-        self._initialize_device({"port": port})
+        self._initialize_device({"port": port, "auto_open": auto_open})
 
     def enable(self) -> None:
         """Turn emission on."""
@@ -50,6 +51,14 @@ class SuperKCompactClient(LabDeviceClient):
     @reprate.setter
     def reprate(self, value: int) -> None:
         self.set_property("reprate", value)
+
+    def open(self) -> None:
+        """Open the device port on the server."""
+        self.call("open")
+
+    def close(self) -> None:
+        """Close the device port on the server."""
+        self.call("close")
 
     @property
     def power_percentage(self) -> int:
