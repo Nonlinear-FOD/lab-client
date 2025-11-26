@@ -1,6 +1,6 @@
-# Overview
+# Overview Services
 
-Read-only endpoints to inspect connected devices and locks and enumerate VISA resources. Session worker management (list/restart/shutdown) now lives in `LabSystemClient` alongside the maintenance endpoints (`/system/update`, `/client-docs/*`) so the overview client stays focused on visibility.
+Use these helpers to see what’s connected/locked and to manage your own session without touching the server directly. `LabOverviewClient` is read-only; `LabSystemClient` handles restarts and maintenance endpoints.
 
 - Client: `clients.lab_overview_client.LabOverviewClient`
 - Maintenance helper: `clients.lab_overview_client.LabSystemClient`
