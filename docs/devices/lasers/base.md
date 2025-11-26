@@ -7,6 +7,8 @@ Common helpers mixed into all laser clients.
   - `clients.laser_base_clients.PowerSettable`
   - `clients.laser_base_clients.OSATuningClientMixin`
 
+Most tunable lasers (Ando, Agilent, Photonetics, etc.) inherit these behaviors. If a device page looks sparse, remember its full property/method set also includes the endpoints documented here.
+
 ## API Reference
 
 ::: clients.laser_base_clients.TunableLaserClientBase
