@@ -130,6 +130,61 @@ class AgilentLaserClient(TunableLaserClientBase, PowerSettable, OSATuningClientM
         self.set_property("unit", value)
 
 
+class PhotoneticsLaserClient(
+    TunableLaserClientBase, PowerSettable, OSATuningClientMixin
+):
+    """Client for Photonetics tunable laser.
+
+    Server-side driver: `devices.laser_control.PhotoneticsLaser`.
+
+    Args:
+        base_url: Base HTTP URL of the server (e.g., `http://127.0.0.1:5000`).
+        device_name: Device key from server config (e.g., `photonetics_laser_1`).
+        target_wavelength: Initial wavelength (nm).
+        power: Initial output power (device units; see driver docs).
+        GPIB_address: GPIB address for the laser.
+        GPIB_bus: GPIB bus index (defaults to 0).
+        unit: Power unit string accepted by the driver (`DBM` or `MW`).
+        timeout_s: Transport timeout in seconds.
+        user: Optional user name for server-side locking.
+        debug: When true, server returns detailed error payloads.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        device_name: str,
+        target_wavelength: float | int,
+        power: float | int,
+        GPIB_address: int | None = None,
+        GPIB_bus: int | None = None,
+        unit: str = "DBM",
+        timeout_s: float | None = None,
+        user: str | None = None,
+        debug: bool = False,
+    ):
+        self.init_params = {
+            "target_wavelength": target_wavelength,
+            "power": power,
+            "GPIB_address": GPIB_address,
+            "GPIB_bus": GPIB_bus,
+            "unit": unit,
+            "timeout_s": timeout_s,
+        }
+        super().__init__(base_url, device_name, user=user, debug=debug)
+        self._initialize_device(self.init_params)
+
+    @property
+    def power_unit(self) -> str:
+        """Set output power unit (`DBM` or `MW`)."""
+        return self.get_property("power_unit")
+
+    @power_unit.setter
+    def power_unit(self, unit: str = "DBM") -> None:
+        """Set output power unit (`DBM` or `MW`)."""
+        self.set_property("power_unit", value=unit)
+
+
 class TiSapphireClient(LabDeviceClient, OSATuningClientMixin):
     """Client for Ti:Sapphire laser.
 
