@@ -3,12 +3,13 @@
 - Client: `clients.ipg_edfa_client.IPGEDFAClient`
 - Server driver: `devices.ipg_edfa.IPGEDFA`
 
+## Quickstart
+
 ```python
 from clients.ipg_edfa_client import IPGEDFAClient
 
 base = "http://127.0.0.1:5000"
 user = "alice"
-
 edfa = IPGEDFAClient(
     base_url=base,
     device_name="ipg_edfa",
