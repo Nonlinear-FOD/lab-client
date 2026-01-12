@@ -5,6 +5,10 @@ New to the lab-client? Follow these steps to get a working setup and run your fi
 ## 1) Set up your environment
 - Prereqs: `git` and Python 3.7+ on your machine.
 - Clone `lab-client` somewhere reachable.
+  ```bash
+  git clone https://github.com/Nonlinear-FOD/lab-client
+  ```
+
 - In your experiment folder (where you keep notebooks/scripts), run:
 ```bash
 cd <your-experiment>
