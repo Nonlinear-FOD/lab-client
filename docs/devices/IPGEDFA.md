@@ -10,29 +10,23 @@ from clients.ipg_edfa_client import IPGEDFAClient
 
 base = "http://127.0.0.1:5000"
 user = "alice"
-edfa = IPGEDFAClient(
-    base_url=base,
-    device_name="ipg_edfa",
-    user=user,
-)
+
+# Initialize the IPG EDFA client
+edfa = IPGEDFAClient(base_url=base, device_name="ipg_edfa_1", user=user)
 
 # Configure device: power unit, mode, and setpoints
-edfa.power_unit = "dBm"
-edfa.mode = "APC"
-edfa.power_set_point = "20"
-edfa.gain_set_point = "25"
-edfa.current_set_point = "1.2"
-edfa.emission = 1
+edfa.power_unit = "dBm"         # Power unit can be 'dBm' or 'W'
+edfa.mode = "APC"               # Control mode: APC, ACC, AGC
+edfa.power_set_point = "20"     # Target output power
+edfa.gain_set_point = "25"      # Target gain (for AGC mode)
+edfa.current_set_point = "1.2"  # Target diode current (for ACC mode)
+edfa.emission = 1               # Turn on emission
 
-# Read output and input power
+# Read values
 print("Output power:", edfa.read_output_power())
 print("Input power:", edfa.input_power())
-
-# Read diode current and back-reflection level
 print("Diode current:", edfa.read_diode_current())
 print("Back-reflection level:", edfa.back_reflection_level())
-
-# Read raw device status
 print("Device status:", edfa.stat())
 
 # Low-level SCPI commands
