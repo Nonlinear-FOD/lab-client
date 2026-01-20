@@ -21,36 +21,36 @@ nav:
   - Authentication: authentication.md
   - Dependency Workflow: manage_dependencies.md
   - Devices:
-      - Zaber 1D: devices/zaber_1d.md
-      - Keithley 2700: devices/keithley_2700.md
-      - Tenma PSU: devices/tenma_psu.md
-      - PicoScope 2000A: devices/picoscope2000a.md
-      - Tektronix Oscilloscope: devices/oscilloscope.md
-      - OSA: devices/osa.md
-      - Thorlabs PM100: devices/thorlabs_pm.md
-      - Thorlabs MPC320: devices/thorlabs_mpc320.md
-      - Thorlabs KCube Motor: devices/kinesis_motor.md
       - Box Optronics EDFA: devices/boxoptronics_edfa.md
       - IPG EDFA: devices/IPGEDFA.md
+      - Keithley 2700: devices/keithley_2700.md
+      - OSA: devices/osa.md
+      - PicoScope 2000A: devices/picoscope2000a.md
+      - Tektronix Oscilloscope: devices/oscilloscope.md
+      - Tenma PSU: devices/tenma_psu.md
+      - Thorlabs KCube Motor: devices/kinesis_motor.md
+      - Thorlabs MPC320: devices/thorlabs_mpc320.md
+      - Thorlabs PM100: devices/thorlabs_pm.md
+      - Zaber 1D: devices/zaber_1d.md      
       - Cameras:
-          - Chameleon Camera: devices/camera/chameleon.md
-          - Spiricon Camera: devices/camera/spiricon.md
           - Bobcat Camera: devices/camera/bobcat.md
+          - Chameleon Camera: devices/camera/chameleon.md
+          - Spiricon Camera: devices/camera/spiricon.md          
           - Thorlabs Camera: devices/camera/thorlabs.md
       - Lasers:
-          - Base & Mixins: devices/lasers/base.md
-          - Ando: devices/lasers/ando.md
           - Agilent: devices/lasers/agilent.md
-          - Photonetics: devices/lasers/photonetics.md
+          - Ando: devices/lasers/ando.md
+          - Base & Mixins: devices/lasers/base.md         
           - NKTP Aeropulse FS20: devices/lasers/fs20.md
-          - NKTP SuperK Compact: devices/lasers/superk.md
+          - NKTP SuperK Compact: devices/lasers/superk.md          
+          - Photonetics: devices/lasers/photonetics.md
           - Ti:Sapphire: devices/lasers/tisa.md
           - Verdi: devices/verdi.md
   - Services:
       - Overview: services/overview.md
       - Polarization Optimizer: services/polarization_optimizer.md
-      - S2 Remote Orchestrator: services/s2_remote.md
       - S2 Processing: services/s2_processing.md
+      - S2 Remote Orchestrator: services/s2_remote.md
   - Setups:
       - LPG Fabrication: setups/lpg.md
   - API:
