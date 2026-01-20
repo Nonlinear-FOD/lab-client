@@ -2,6 +2,8 @@
 
 New to the lab-client? Follow these steps to get a working setup and run your first calls.
 
+**Note:** Employees (including PhD students) can use wifi via "DTUsecure" or a cable connection. However, student accounts must use ethernet cabled connection.
+
 ## 1) Set up your environment
 - Prereqs: `git` and Python 3.7+ on your machine.
 - Clone `lab-client` somewhere reachable.
