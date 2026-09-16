@@ -27,6 +27,17 @@ class AeropulseFS20Client(LabDeviceClient):
         """Set emission to OFF."""
         self.call("disable")
 
+    def configure_pulse_trigger(self) -> None:
+        """Configure software-trigger mode; emission must be off."""
+        self.call("configure_pulse_trigger")
+
+    def configure_pulse_mode(self, mode: str = "trigger") -> None:
+        self.call("configure_pulse_mode", mode=mode)
+
+    def trigger(self) -> None:
+        """Request one train using the configured pulse count."""
+        self.call("trigger")
+
     def open(self) -> None:
         """Open the device port on the server."""
         self.call("open")
@@ -107,3 +118,17 @@ class AeropulseFS20Client(LabDeviceClient):
     @wl_offset.setter
     def wl_offset(self, value: float) -> None:
         self.set_property("wl_offset", value)
+
+    @property
+    def pulse_count(self) -> int:
+        """Read the configured number of pulses per trigger."""
+        return int(self.get_property("pulse_count"))
+
+    @pulse_count.setter
+    def pulse_count(self, count: int) -> None:
+        """Set the pulse count without triggering."""
+        if type(count) is not int or not 1 <= count <= 16383:
+            raise ValueError(
+                "Pulse count must be an integer from 1 to 16383"
+            )
+        self.set_property("pulse_count", count)
