@@ -103,6 +103,31 @@ class TektronixOscilloscopeClient(LabDeviceClient):
     def offset(self, volts: float) -> None:
         self.set_property("offset", float(volts))
 
+    @property
+    def time_delay(self) -> float:
+        return float(self.get_property("time_delay"))
+
+    @time_delay.setter
+    def time_delay(self, seconds: float) -> None:
+        self.set_property("time_delay", float(seconds))
+
+    # ---------------Single Acquisition -----------------------------
+
+    def single(self) -> None:
+        """Arm the scope for one acquisition; return without waiting."""
+        self.call("single")
+
+    def trigger_state(self) -> str:
+        return str(self.call("trigger_state")).strip().upper()
+
+    def acquisition_running(self) -> bool:
+        result = self.call("acquisition_running")
+        if not isinstance(result, bool):
+            raise RuntimeError(
+                f"Unexpected acquisition_running response: {result!r}"
+            )
+        return result    
+
     # ---------------- Acquisition ----------------
     def read_waveform(
         self,
