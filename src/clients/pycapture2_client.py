@@ -145,6 +145,43 @@ class PyCapture2Client(LabDeviceClient):
         self._shape = None
         return result
 
+    def record_frames(
+        self,
+        filename: str,
+        n_frames: int = 150,
+        x_start: int = 0,
+        x_end: int | None = None,
+        y_start: int = 0,
+        y_end: int | None = None,
+        flush_frames: int = 5,
+    ) -> dict[str, Any]: # Added by Rodrigo
+
+        payload = {
+            "filename": filename,
+            "n_frames": int(n_frames),
+            "x_start": int(x_start),
+            "y_start": int(y_start),
+            "flush_frames": int(flush_frames),
+        }
+
+        if x_end is not None:
+            payload["x_end"] = int(x_end)
+
+        if y_end is not None:
+            payload["y_end"] = int(y_end)
+
+        result = self.call(
+            "record_frames",
+            **payload
+        )
+
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                "Unexpected response from record_frames"
+            )
+
+        return result
+
     @property
     def max_signal(self) -> float:
         """Return the maximum digital count supported by this camera."""
@@ -210,3 +247,50 @@ class PyCapture2Client(LabDeviceClient):
             width = shape.get("width")
             if height is not None and width is not None:
                 self._shape = (int(height), int(width))
+
+
+    def set_shutter(self, shutter_ms: float) -> float: # Added by Rodrigo
+        """Set camera shutter time in milliseconds."""
+        result = self.call(
+            "set_shutter",
+            shutter_ms=float(shutter_ms),
+        )
+
+        if not isinstance(result, dict) or "shutter_ms" not in result:
+            raise RuntimeError("Unexpected response from set_shutter")
+
+        return float(result["shutter_ms"])
+
+
+    def get_shutter(self) -> float: # Added by Rodrigo
+        """Return the current shutter time in milliseconds."""
+        result = self.call("get_shutter")
+
+        if not isinstance(result, dict) or "shutter_ms" not in result:
+            raise RuntimeError("Unexpected response from get_shutter")
+
+        return float(result["shutter_ms"])
+
+
+    def set_gain(self, gain_db: float) -> float: # Added by Rodrigo
+        """Set camera gain in dB."""
+        result = self.call(
+            "set_gain",
+            gain_db=float(gain_db),
+        )
+
+        if not isinstance(result, dict) or "gain_db" not in result:
+            raise RuntimeError("Unexpected response from set_gain")
+
+        return float(result["gain_db"])
+
+
+    def get_gain(self) -> float: # Added by Rodrigo
+        """Return the current gain in dB."""
+        result = self.call("get_gain")
+
+        if not isinstance(result, dict) or "gain_db" not in result:
+            raise RuntimeError("Unexpected response from get_gain")
+
+        return float(result["gain_db"])
+
