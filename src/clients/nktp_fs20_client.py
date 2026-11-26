@@ -32,7 +32,26 @@ class AeropulseFS20Client(LabDeviceClient):
         self.call("configure_pulse_trigger")
 
     def configure_pulse_mode(self, mode: str = "trigger") -> None:
+        """Select 'continuous', software 'trigger', or 'external_gate'.
+
+        Emission must be off. The server validates and applies the settings.
+        """
         self.call("configure_pulse_mode", mode=mode)
+
+    def configure_external_gate(self) -> dict:
+        """Configure Gate In control and return the server's register readback.
+
+        Emission must be off. Leaves emission, AOM enable, power and repetition
+        rate unchanged. 'configured' confirms settings, not optical readiness.
+        """
+        return self.call("configure_external_gate")
+
+    def get_external_gate_settings(self) -> dict:
+        """Read gate settings, AOM enable and emission state without changing them.
+
+        This does not measure the Gate In voltage or optical output.
+        """
+        return self.call("get_external_gate_settings")
 
     def trigger(self) -> None:
         """Request one train using the configured pulse count."""
